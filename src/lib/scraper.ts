@@ -1,0 +1,344 @@
+import { createHash } from "crypto";
+import * as cheerio from "cheerio";
+import Parser from "rss-parser";
+import { getStore } from "./store";
+import type { Article, Source } from "./types";
+
+const UA =
+  "Mozilla/5.0 (compatible; CodigoEnergiaBot/1.0; +https://codigoenergia.ar) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
+
+export async function fetchText(url: string, timeoutMs = 15000): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml,application/xml,application/rss+xml;q=0.9,*/*;q=0.8" },
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
+  return res.text();
+}
+
+export interface RawItem {
+  title: string;
+  url: string;
+  summary: string;
+  image?: string | null;
+  date?: string | null;
+  source_name?: string | null;
+}
+
+export function stripHtml(html: string): string {
+  if (!html) return "";
+  const text = cheerio.load(`<div>${html}</div>`)("div").text();
+  return text.replace(/\s+/g, " ").replace(/\[…\]|\[\.\.\.\]/g, "…").trim();
+}
+
+export function truncate(s: string, n: number): string {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n);
+  return cut.slice(0, cut.lastIndexOf(" ") > n * 0.6 ? cut.lastIndexOf(" ") : n).trimEnd() + "…";
+}
+
+export function normalizeUrl(u: string): string {
+  try {
+    const url = new URL(u);
+    url.hash = "";
+    for (const k of [...url.searchParams.keys()]) if (/^(utm_|fbclid|gclid|ref$|oc$)/.test(k)) url.searchParams.delete(k);
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return u.trim();
+  }
+}
+
+export function articleId(url: string): string {
+  return createHash("sha1").update(normalizeUrl(url)).digest("hex").slice(0, 16);
+}
+
+export function titleKey(t: string): string {
+  return t
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
+export function googleNewsUrl(query: string): string {
+  const q = /when:\d+[hd]/.test(query) ? query : `${query} when:2d`;
+  return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=es-419&gl=AR&ceid=AR:es-419`;
+}
+
+type FeedItem = {
+  title?: string;
+  link?: string;
+  contentSnippet?: string;
+  content?: string;
+  summary?: string;
+  isoDate?: string;
+  pubDate?: string;
+  enclosure?: { url?: string; type?: string };
+  mediaContent?: { $?: { url?: string } } | { $?: { url?: string } }[];
+  mediaThumbnail?: { $?: { url?: string } };
+  source?: string | { _?: string };
+  "content:encoded"?: string;
+};
+
+const parser: Parser<object, FeedItem> = new Parser({
+  customFields: {
+    item: [
+      ["media:content", "mediaContent", { keepArray: false }],
+      ["media:thumbnail", "mediaThumbnail"],
+      ["source", "source"],
+      ["content:encoded", "content:encoded"],
+    ],
+  },
+});
+
+function firstImgInHtml(html?: string): string | null {
+  if (!html) return null;
+  const $ = cheerio.load(html);
+  return $("img").first().attr("src") ?? null;
+}
+
+export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawItem[]> {
+  const feed = await parser.parseString(xml);
+  return (feed.items ?? [])
+    .filter((it) => it.title && it.link)
+    .map((it) => {
+      let title = stripHtml(it.title!);
+      let source_name: string | null = null;
+      if (it.source) source_name = typeof it.source === "string" ? it.source : it.source._ ?? null;
+      if (isGoogleNews) {
+        // "Titular - Medio" → separar el medio
+        const m = title.match(/^(.*) - ([^-]{2,60})$/);
+        if (m) {
+          title = m[1].trim();
+          source_name ??= m[2].trim();
+        }
+      }
+      const media = Array.isArray(it.mediaContent) ? it.mediaContent[0] : it.mediaContent;
+      const image =
+        media?.$?.url ??
+        it.mediaThumbnail?.$?.url ??
+        (it.enclosure?.type?.startsWith("image") ? it.enclosure.url : undefined) ??
+        firstImgInHtml(it["content:encoded"] ?? it.content) ??
+        null;
+      const rawSummary = isGoogleNews ? "" : it.contentSnippet || stripHtml(it.summary ?? it.content ?? "");
+      return {
+        title,
+        url: it.link!,
+        summary: truncate(stripHtml(rawSummary), 420),
+        image,
+        date: it.isoDate ?? (it.pubDate ? new Date(it.pubDate).toISOString() : null),
+        source_name,
+      };
+    });
+}
+
+export function parseHtmlList(html: string, baseUrl: string, sel: NonNullable<Source["selectors"]>): RawItem[] {
+  const $ = cheerio.load(html);
+  const abs = (u?: string | null) => {
+    if (!u) return null;
+    try {
+      return new URL(u, baseUrl).toString();
+    } catch {
+      return null;
+    }
+  };
+  const items: RawItem[] = [];
+  $(sel.item).each((_, el) => {
+    const $el = $(el);
+    const titleEl = sel.title ? $el.find(sel.title).first() : $el;
+    const linkEl = sel.link ? $el.find(sel.link).first() : $el.is("a") ? $el : $el.find("a").first();
+    const title = titleEl.text().replace(/\s+/g, " ").trim();
+    const url = abs(linkEl.attr("href"));
+    if (!title || !url) return;
+    const imgEl = sel.image ? $el.find(sel.image).first() : $el.find("img").first();
+    const image = abs(imgEl.attr("data-src") || imgEl.attr("src") || imgEl.attr("data-lazy-src"));
+    const summary = sel.summary ? $el.find(sel.summary).first().text().replace(/\s+/g, " ").trim() : "";
+    const dateEl = sel.date ? $el.find(sel.date).first() : null;
+    const dateStr = dateEl?.attr("datetime") || dateEl?.text().trim();
+    const d = dateStr ? new Date(dateStr) : null;
+    items.push({ title, url, summary: truncate(summary, 420), image, date: d && !isNaN(+d) ? d.toISOString() : null });
+  });
+  return items;
+}
+
+export interface PageMeta {
+  image?: string | null;
+  description?: string | null;
+  published?: string | null;
+}
+
+export function extractMeta(html: string, pageUrl: string): PageMeta {
+  const $ = cheerio.load(html);
+  const meta = (...names: string[]) => {
+    for (const n of names) {
+      const v = $(`meta[property="${n}"]`).attr("content") || $(`meta[name="${n}"]`).attr("content");
+      if (v) return v.trim();
+    }
+    return null;
+  };
+  let image = meta("og:image", "og:image:url", "twitter:image");
+  if (image) {
+    try {
+      image = new URL(image, pageUrl).toString();
+    } catch {
+      image = null;
+    }
+  }
+  return {
+    image,
+    description: meta("og:description", "description", "twitter:description"),
+    published: meta("article:published_time", "og:updated_time", "date"),
+  };
+}
+
+// Orden = prioridad. Solo se ancla el inicio de palabra para aceptar plurales y derivados.
+const CLASSIFIER: [string, RegExp][] = [
+  ["mineria", /(^|[^\p{L}])(miner[ií]a|miner[oa]s?|mining|litio|lithium|cobre|copper|oro\b|plata\b|salar(es)?\b|uranio|metalífer|exploraci[oó]n minera|RIGI minero)/iu],
+  ["renovables", /(^|[^\p{L}])(solar(es)?\b|e[oó]lic|renovable|fotovoltaic|hidr[oó]geno verde|biocombustible|bioetanol|biodi[eé]sel)/iu],
+  ["electricidad", /(^|[^\p{L}])(CAMMESA|tarifas? el[eé]ctric|electricidad|transmisi[oó]n el[eé]ctrica|distribuidora|Edenor|Edesur|apag[oó]n|demanda el[eé]ctrica)/iu],
+  ["oil-gas", /(^|[^\p{L}])(petr[oó]le|crudo|Vaca Muerta|shale|gas natural|GNL|LNG|oleoducto|gasoducto|YPF|barril|refiner[ií]a|nafta|combustible|upstream|fractura|Chevron|Vista Energy|Tecpetrol|El Trapial)/iu],
+];
+
+export function classify(text: string, fallback: string): string {
+  for (const [slug, re] of CLASSIFIER) if (re.test(text)) return slug;
+  return fallback === "auto" ? "energia" : fallback;
+}
+
+function matchesKeywords(text: string, include: string[], exclude: string[]): boolean {
+  const t = text.toLowerCase();
+  if (exclude.some((k) => k.trim() && t.includes(k.trim().toLowerCase()))) return false;
+  if (!include.filter((k) => k.trim()).length) return true;
+  return include.some((k) => k.trim() && t.includes(k.trim().toLowerCase()));
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (i < items.length) {
+        const idx = i++;
+        out[idx] = await fn(items[idx]);
+      }
+    }),
+  );
+  return out;
+}
+
+/** Descarga y parsea una fuente sin guardar nada. Se usa también para "Probar fuente" en el back office. */
+export async function fetchSource(source: Source): Promise<RawItem[]> {
+  let items: RawItem[];
+  if (source.type === "google_news") {
+    items = await parseFeed(await fetchText(googleNewsUrl(source.url)), true);
+  } else if (source.type === "rss") {
+    items = await parseFeed(await fetchText(source.url));
+  } else {
+    if (!source.selectors?.item) throw new Error("La fuente HTML necesita al menos el selector de item");
+    items = parseHtmlList(await fetchText(source.url), source.url, source.selectors);
+  }
+  return items
+    .filter((it) => matchesKeywords(`${it.title} ${it.summary}`, source.include_keywords ?? [], source.exclude_keywords ?? []))
+    .slice(0, source.max_items || 20);
+}
+
+export interface SourceReport {
+  source: string;
+  found: number;
+  inserted: number;
+  error?: string;
+}
+
+export async function scrapeSource(source: Source, knownTitles: Set<string>): Promise<{ report: SourceReport; inserted: Article[] }> {
+  const store = await getStore();
+  const now = new Date().toISOString();
+  try {
+    const raw = await fetchSource(source);
+    const ids = raw.map((r) => articleId(r.url));
+    const existing = await store.existingArticleIds(ids);
+    const fresh = raw.filter((r, i) => !existing.has(ids[i]) && !knownTitles.has(titleKey(r.title)));
+
+    if (source.fetch_meta) {
+      await mapLimit(fresh, 4, async (it) => {
+        if (it.image && it.summary && it.date) return;
+        try {
+          const meta = extractMeta(await fetchText(it.url, 10000), it.url);
+          it.image ||= meta.image;
+          it.summary ||= truncate(meta.description ?? "", 420);
+          if (!it.date && meta.published && !isNaN(+new Date(meta.published))) it.date = new Date(meta.published).toISOString();
+        } catch {
+          /* la nota se guarda igual, sin imagen */
+        }
+      });
+    }
+
+    const rows: Article[] = fresh.map((it) => {
+      knownTitles.add(titleKey(it.title));
+      const published = it.date && new Date(it.date) <= new Date() ? it.date : now;
+      return {
+        id: articleId(it.url),
+        url: normalizeUrl(it.url),
+        title: it.title,
+        summary: it.summary,
+        image: it.image ?? null,
+        source_id: source.id,
+        source_name: it.source_name || source.name.replace(/^Google News · /, ""),
+        category: source.category === "auto" ? classify(`${it.title} ${it.summary}`, "auto") : source.category,
+        tags: [],
+        published_at: published,
+        scraped_at: now,
+        status: source.auto_publish ? "published" : "draft",
+        featured: false,
+        views: 0,
+      };
+    });
+    const inserted = await store.insertNewArticles(rows);
+    await store.patch("sources", source.id, { last_run_at: now, last_status: "ok", last_count: inserted.length });
+    return { report: { source: source.name, found: raw.length, inserted: inserted.length }, inserted };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await store.patch("sources", source.id, { last_run_at: now, last_status: `error: ${msg}`.slice(0, 300), last_count: 0 });
+    return { report: { source: source.name, found: 0, inserted: 0, error: msg }, inserted: [] };
+  }
+}
+
+export async function runScrape(onlySourceId?: string): Promise<{ reports: SourceReport[]; inserted: number; removed: number }> {
+  const store = await getStore();
+  const settings = await store.getSettings();
+  await store.saveSettings({ last_scrape_at: new Date().toISOString() });
+  const sources = (await store.list("sources")).filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
+  const recent = await store.queryArticles({ status: "all", limit: 400 });
+  const knownTitles = new Set(recent.map((a) => titleKey(a.title)));
+
+  // Las fuentes van en serie para que la deduplicación por título funcione entre medios.
+  const reports: SourceReport[] = [];
+  const insertedAll: Article[] = [];
+  for (const s of sources) {
+    const { report, inserted } = await scrapeSource(s, knownTitles);
+    reports.push(report);
+    insertedAll.push(...inserted);
+  }
+
+  if (settings.ai_rewrite_auto && process.env.ANTHROPIC_API_KEY) {
+    const { rewriteArticle } = await import("./ai");
+    for (const a of insertedAll.slice(0, 5)) {
+      try {
+        const r = await rewriteArticle(a);
+        await store.patch("articles", a.id, r);
+      } catch {
+        /* se reintenta desde el back office */
+      }
+    }
+  }
+
+  let removed = 0;
+  if (!onlySourceId && settings.retention_days > 0) {
+    const cutoff = new Date(Date.now() - settings.retention_days * 86400000).toISOString();
+    removed = await store.deleteArticlesBefore(cutoff);
+  }
+  return { reports, inserted: insertedAll.length, removed };
+}

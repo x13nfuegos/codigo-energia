@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+# base de datos local de desarrollo (modo sin Supabase)
+.data/
+public/media/*
+!public/media/.gitkeep
