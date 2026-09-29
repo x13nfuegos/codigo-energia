@@ -26,6 +26,28 @@ export interface Article {
   status: ArticleStatus;
   featured?: boolean;
   views?: number;
+  /** ubicación de la noticia (detectada automáticamente o cargada a mano) */
+  geo?: GeoTag | null;
+}
+
+export interface GeoTag {
+  lat: number;
+  lng: number;
+  place: string;
+  /** cargada a mano en el back office: no se pisa al re-geolocalizar */
+  manual?: boolean;
+}
+
+/** capa WMS externa (ej. SIG de la Secretaría de Energía) */
+export interface MapLayer {
+  id: string;
+  label: string;
+  url: string;
+  layers: string;
+  enabled: boolean;
+  /** visible al abrir el mapa */
+  visible: boolean;
+  opacity: number;
 }
 
 export type SourceType = "rss" | "google_news" | "html";
@@ -184,6 +206,7 @@ export interface Settings {
   brief_hour: number;
   brief_audio: boolean;
   brief_video: boolean;
+  map_layers: MapLayer[];
   last_scrape_at?: string | null;
   last_indicators_at?: string | null;
 }
@@ -208,4 +231,6 @@ export interface ArticleQuery {
   featured?: boolean;
   since?: string;
   orderBy?: "published_at" | "views";
+  /** solo notas geolocalizadas */
+  hasGeo?: boolean;
 }

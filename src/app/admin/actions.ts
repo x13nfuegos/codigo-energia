@@ -7,9 +7,10 @@ import { SCHEMAS, parseForm } from "@/lib/admin-schema";
 import { checkPassword, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE, verifySessionToken } from "@/lib/auth";
 import { refreshIndicators } from "@/lib/indicators";
 import { runDailyBrief } from "@/lib/jobs";
-import { articleId, fetchSource, runScrape, type RawItem } from "@/lib/scraper";
+import * as cheerio from "cheerio";
+import { articleId, fetchSource, fetchText, geotagArticles, runScrape, type RawItem } from "@/lib/scraper";
 import { getStore } from "@/lib/store";
-import type { Article, Category, Settings, Source, TableName, Tables } from "@/lib/types";
+import type { Article, Category, MapLayer, Settings, Source, TableName, Tables } from "@/lib/types";
 
 async function requireAdmin() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -74,7 +75,16 @@ export async function saveEntity(table: TableName, returnTo: string, fd: FormDat
       data.bullets = data.bullets.split("\n").map((l) => l.replace(/^[-•▸*]\s*/, "").trim()).filter(Boolean);
     }
     if (table === "briefs" && data.video_url) data.video_status = "manual";
-    if (table === "articles") data.url ??= "";
+    if (table === "articles") {
+      data.url ??= "";
+      const g = data.geo as { lat: number | null; lng: number | null; place: string | null } | undefined;
+      const prev = id ? ((await store.get("articles", id))?.geo ?? null) : null;
+      if (g?.lat == null || g?.lng == null) data.geo = null;
+      else {
+        const changed = !prev || prev.lat !== g.lat || prev.lng !== g.lng || prev.place !== (g.place ?? "");
+        data.geo = { lat: g.lat, lng: g.lng, place: g.place ?? "", manual: changed ? true : !!prev?.manual };
+      }
+    }
     if (table === "sections" && data.columns) data.columns = Number(data.columns);
     if (table === "sources") {
       const sel = data.selectors as Record<string, string | null> | undefined;
@@ -265,4 +275,75 @@ export async function saveSettings(fd: FormData) {
     back("/admin/ajustes", errMsg(e), true);
   }
   back("/admin/ajustes", "Ajustes guardados");
+}
+
+// ---------- mapa: geolocalización y capas WMS ----------
+
+export async function geotagNow(force: boolean) {
+  await requireAdmin();
+  const r = await geotagArticles(force);
+  back("/admin/mapa", `Revisadas ${r.checked} notas, ${r.tagged} ubicadas en el mapa`);
+}
+
+export async function saveMapLayer(fd: FormData) {
+  await requireAdmin();
+  const str = (k: string) => String(fd.get(k) ?? "").trim();
+  const store = await getStore();
+  const layers = [...((await store.getSettings()).map_layers ?? [])];
+  const layer: MapLayer = {
+    id: str("id") || `capa-${Date.now().toString(36)}`,
+    label: str("label") || str("layers"),
+    url: str("url"),
+    layers: str("layers"),
+    enabled: fd.get("enabled") === "on",
+    visible: fd.get("visible") === "on",
+    opacity: Math.min(1, Math.max(0.1, Number(str("opacity").replace(",", ".")) || 1)),
+  };
+  if (!layer.url || !layer.layers) back("/admin/mapa", "La capa necesita URL del servicio WMS y nombre de capa", true);
+  const i = layers.findIndex((l) => l.id === layer.id);
+  if (i >= 0) layers[i] = layer;
+  else layers.push(layer);
+  await store.saveSettings({ map_layers: layers });
+  back("/admin/mapa", "Capa guardada");
+}
+
+export async function deleteMapLayer(id: string) {
+  await requireAdmin();
+  const store = await getStore();
+  await store.saveSettings({ map_layers: ((await store.getSettings()).map_layers ?? []).filter((l) => l.id !== id) });
+  back("/admin/mapa", "Capa eliminada");
+}
+
+export type WmsLayerInfo = { name: string; title: string };
+
+/** Lee el GetCapabilities de un servicio WMS y devuelve sus capas. */
+export async function listWmsLayers(url: string): Promise<{ layers?: WmsLayerInfo[]; error?: string }> {
+  await requireAdmin();
+  try {
+    const u = new URL(url);
+    u.searchParams.set("service", "WMS");
+    u.searchParams.set("request", "GetCapabilities");
+    if (!u.searchParams.get("version")) u.searchParams.set("version", "1.3.0");
+    const $ = cheerio.load(await fetchText(u.toString(), 25000), { xml: true });
+    const layers: WmsLayerInfo[] = [];
+    $("Layer").each((_, el) => {
+      const name = $(el).children("Name").first().text().trim();
+      if (name) layers.push({ name, title: $(el).children("Title").first().text().trim() || name });
+    });
+    if (!layers.length) return { error: "El servicio no devolvió capas (¿es una URL WMS?)" };
+    return { layers };
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}
+
+export async function addWmsLayer(url: string, name: string, title: string) {
+  await requireAdmin();
+  const store = await getStore();
+  const layers = [...((await store.getSettings()).map_layers ?? [])];
+  if (!layers.some((l) => l.url === url && l.layers === name)) {
+    layers.push({ id: `capa-${Date.now().toString(36)}`, label: title, url, layers: name, enabled: true, visible: false, opacity: 0.9 });
+    await store.saveSettings({ map_layers: layers });
+  }
+  revalidatePath("/", "layout");
 }

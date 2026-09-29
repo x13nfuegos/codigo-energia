@@ -41,7 +41,8 @@ create table if not exists articles (
   scraped_at timestamptz not null default now(),
   status text not null default 'published' check (status in ('published', 'draft', 'hidden')),
   featured boolean not null default false,
-  views int not null default 0
+  views int not null default 0,
+  geo jsonb
 );
 create index if not exists articles_published_idx on articles (status, published_at desc);
 create index if not exists articles_category_idx on articles (category, published_at desc);
@@ -130,3 +131,6 @@ alter table briefs enable row level security;
 insert into storage.buckets (id, name, public)
 values ('media', 'media', true)
 on conflict (id) do nothing;
+
+-- Si la base ya existía antes de la geolocalización de noticias:
+alter table articles add column if not exists geo jsonb;

@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import * as cheerio from "cheerio";
 import Parser from "rss-parser";
+import { makeGeolocator } from "./geo";
 import { getStore } from "./store";
 import type { Article, Source } from "./types";
 
@@ -253,7 +254,7 @@ export interface SourceReport {
   error?: string;
 }
 
-export async function scrapeSource(source: Source, knownTitles: Set<string>): Promise<{ report: SourceReport; inserted: Article[] }> {
+export async function scrapeSource(source: Source, knownTitles: Set<string>, geo = makeGeolocator()): Promise<{ report: SourceReport; inserted: Article[] }> {
   const store = await getStore();
   const now = new Date().toISOString();
   try {
@@ -294,6 +295,7 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>): Pr
         status: source.auto_publish ? "published" : "draft",
         featured: false,
         views: 0,
+        geo: geo(it.title, it.summary),
       };
     });
     const inserted = await store.insertNewArticles(rows);
@@ -313,12 +315,13 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   const sources = (await store.list("sources")).filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
   const recent = await store.queryArticles({ status: "all", limit: 400 });
   const knownTitles = new Set(recent.map((a) => titleKey(a.title)));
+  const geo = makeGeolocator(await store.list("map_points"));
 
   // Las fuentes van en serie para que la deduplicación por título funcione entre medios.
   const reports: SourceReport[] = [];
   const insertedAll: Article[] = [];
   for (const s of sources) {
-    const { report, inserted } = await scrapeSource(s, knownTitles);
+    const { report, inserted } = await scrapeSource(s, knownTitles, geo);
     reports.push(report);
     insertedAll.push(...inserted);
   }
@@ -341,4 +344,21 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     removed = await store.deleteArticlesBefore(cutoff);
   }
   return { reports, inserted: insertedAll.length, removed };
+}
+
+/** Geolocaliza notas recientes que todavía no tienen ubicación (o todas, con force). */
+export async function geotagArticles(force = false, limit = 500): Promise<{ checked: number; tagged: number }> {
+  const store = await getStore();
+  const geo = makeGeolocator(await store.list("map_points"));
+  const list = await store.queryArticles({ status: "all", limit });
+  let tagged = 0;
+  for (const a of list) {
+    if (a.geo && (!force || a.geo.manual)) continue;
+    const g = geo(a.title, a.summary);
+    if (g || (force && a.geo)) {
+      await store.patch("articles", a.id, { geo: g });
+      if (g) tagged++;
+    }
+  }
+  return { checked: list.length, tagged };
 }

@@ -28,6 +28,13 @@ export const DEFAULT_SETTINGS: Settings = {
   brief_hour: 7,
   brief_audio: true,
   brief_video: false,
+  // Servicio WMS público del SIG de la Secretaría de Energía. Desde el back office
+  // se pueden explorar todas las capas del servidor y sumar las que hagan falta.
+  map_layers: [
+    { id: "se-gasoductos-proy", label: "Gasoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidtransp_gasoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
+    { id: "se-oleoductos-proy", label: "Oleoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidrocarburos_transporte_oleoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
+    { id: "se-compresoras", label: "Plantas compresoras (ENARGAS)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "enargas_plantas_compresoras", enabled: true, visible: false, opacity: 1 },
+  ],
 };
 
 const gn = (q: string) => q;
@@ -213,7 +220,7 @@ export const DEFAULT_SECTIONS: Section[] = [
   sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 2 }),
   sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
   sec({ id: "mineria", type: "grid", title: "Minería", category: "mineria", limit: 4, columns: 2 }),
-  sec({ id: "mapa", type: "map", title: "Mapa energético", limit: 0 }),
+  sec({ id: "mapa", type: "map", title: "El mapa de la energía", limit: 0 }),
   sec({ id: "energia", type: "list", title: "Energía", category: "energia", limit: 5 }),
   sec({ id: "renovables", type: "grid", title: "Renovables", category: "renovables", limit: 4, columns: 2 }),
   sec({ id: "mercados", type: "indicators", title: "Mercados", limit: 0 }),

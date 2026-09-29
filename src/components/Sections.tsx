@@ -1,3 +1,4 @@
+import { getMapData } from "@/lib/map-data";
 import { getStore } from "@/lib/store";
 import { categoryOf, getIndicators } from "@/lib/site";
 import type { Section, Settings } from "@/lib/types";
@@ -81,11 +82,11 @@ export async function SectionBlock({ section, settings }: { section: Section; se
         </section>
       );
     case "map": {
-      const points = (await store.list("map_points")).filter((p) => p.enabled);
+      const data = await getMapData();
       return (
         <section>
           {section.title && <SectionTitle title={section.title} href="/mapa" />}
-          <MapLoader points={points} height={440} />
+          <MapLoader {...data} height={460} />
         </section>
       );
     }

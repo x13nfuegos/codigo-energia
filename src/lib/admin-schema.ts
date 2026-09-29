@@ -141,6 +141,9 @@ export const SCHEMAS: Partial<Record<TableName, Field[]>> = {
       ],
     },
     { name: "published_at", label: "Fecha", type: "datetime" },
+    { name: "geo.place", label: "Ubicación (nombre)", type: "text", help: "Ej: Añelo, Neuquén. Se detecta sola; corregila si hace falta." },
+    { name: "geo.lat", label: "Latitud", type: "number", help: "Vacío = sin ubicar en el mapa" },
+    { name: "geo.lng", label: "Longitud", type: "number" },
     { name: "featured", label: "Destacada (va a la nota principal)", type: "checkbox" },
   ],
   briefs: [

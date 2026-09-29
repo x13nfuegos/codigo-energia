@@ -53,6 +53,15 @@ configurado en Ajustes y actualiza en segundo plano. Para scrapear más seguido:
 
 Tareas: `scrape`, `indicators`, `daily` (`?force=1` para regenerar), `videos` (revisa renders de HeyGen) y `all`.
 
+## El mapa de la energía
+
+- **Noticias geolocalizadas**: cada nota se ubica sola según los lugares que menciona (yacimientos, ciudades, proyectos
+  mineros, provincias, países vecinos y los puntos cargados en el mapa). Se puede corregir a mano desde la edición de la nota.
+  En el mapa se filtran por período (24 h, 7 y 30 días) y cada nota tiene un link "Ver en el mapa".
+- **Capas oficiales**: el mapa suma capas WMS del SIG de la Secretaría de Energía (`https://sig.energia.gob.ar/wmsenergia`).
+  En Back office → Mapa → "Explorar capas oficiales" se listan todas las capas del servicio y se agregan con un clic.
+- **Infraestructura**: puntos propios (yacimientos, refinerías, centrales, minas, litio, puertos) editables.
+
 ## Contadores en vivo
 
 Los contadores (barriles, gas, litio) muestran *valor inicial + ritmo diario × días transcurridos* desde la fecha configurada.

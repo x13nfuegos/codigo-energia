@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { ListItem, SectionTitle } from "@/components/Cards";
@@ -43,6 +44,11 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
           {dateTime(a.published_at)}
           {(a.source_name || a.url) && <> · Fuente: {a.source_name || hostname(a.url)}</>}
         </p>
+        {a.geo && (
+          <Link href={`/mapa?nota=${a.id}`} className="mt-3 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 text-sm text-muted hover:text-ink">
+            📍 {a.geo.place} · Ver en el mapa
+          </Link>
+        )}
         <Img src={a.image} alt={a.title} cat={cat} className="mt-6 aspect-[16/9] w-full rounded-xl" />
         {a.body && (
           <div className="prose-ce mt-8">

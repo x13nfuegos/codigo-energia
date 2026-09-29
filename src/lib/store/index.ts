@@ -45,6 +45,7 @@ export function filterArticles(all: Article[], q: ArticleQuery): Article[] {
       (!q.category || a.category === q.category) &&
       (q.featured === undefined || !!a.featured === q.featured) &&
       (!q.since || a.published_at >= q.since) &&
+      (!q.hasGeo || !!a.geo) &&
       (!s || a.title.toLowerCase().includes(s) || a.summary.toLowerCase().includes(s)),
   );
   out = out.sort((a, b) =>

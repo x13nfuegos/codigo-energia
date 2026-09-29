@@ -1,4 +1,4 @@
-import type { MapPointType } from "./types";
+import type { MapLayer, MapPoint, MapPointType } from "./types";
 
 export const POINT_TYPES: Record<MapPointType, { label: string; color: string }> = {
   yacimiento: { label: "Yacimientos", color: "#3b82f6" },
@@ -13,3 +13,28 @@ export const POINT_TYPES: Record<MapPointType, { label: string; color: string }>
   mina: { label: "Minas", color: "#e11d48" },
   litio: { label: "Litio", color: "#f0abfc" },
 };
+
+/** Noticia geolocalizada, lista para el mapa (serializable). */
+export interface NewsPin {
+  id: string;
+  title: string;
+  category: string;
+  catName: string;
+  catColor: string;
+  catText: string;
+  published_at: string;
+  lat: number;
+  lng: number;
+  place: string;
+}
+
+export interface EnergyMapProps {
+  points: MapPoint[];
+  news: NewsPin[];
+  layers: MapLayer[];
+  height?: number;
+  /** id de nota a enfocar al abrir */
+  focus?: string | null;
+  /** muestra la lista lateral de noticias */
+  showList?: boolean;
+}
