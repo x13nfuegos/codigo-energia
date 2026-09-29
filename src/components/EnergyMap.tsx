@@ -14,7 +14,8 @@ const PERIODS = [
   { days: 7, label: "7 días" },
   { days: 30, label: "30 días" },
 ];
-const ARG = L.latLngBounds([-55.2, -73.6], [-21.7, -53.5]);
+/** Encuadre inicial: centro y norte del país, de Tucumán a la Patagonia norte (donde se concentra la actividad). */
+const ARG = L.latLngBounds([-42.6, -73.8], [-24.2, -50.5]);
 
 type Group = { key: string; lat: number; lng: number; place: string; items: NewsPin[] };
 
@@ -200,7 +201,7 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
 
       <div className={`grid min-h-0 gap-3 ${full ? "flex-1 lg:grid-cols-[1fr_380px]" : showList ? "lg:grid-cols-[1fr_360px]" : ""}`}>
         <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-line" style={{ height: mapHeight }}>
-          <MapContainer ref={setMap} bounds={ARG} scrollWheelZoom={false} zoomControl={false} style={{ height: "100%", width: "100%" }}>
+          <MapContainer ref={setMap} bounds={ARG} boundsOptions={{ padding: [0, 0] }} scrollWheelZoom={false} zoomControl={false} style={{ height: "100%", width: "100%" }}>
             <TileLayer {...tiles} />
             {layers
               .filter((l) => l.enabled && wms.has(l.id))

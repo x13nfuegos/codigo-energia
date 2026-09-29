@@ -19,6 +19,7 @@ export const CATEGORY_OPTION = "__categories__";
 
 const sourceTypes = [
   { value: "google_news", label: "Google News (búsqueda)" },
+  { value: "bing_news", label: "Bing News (búsqueda, con fotos)" },
   { value: "rss", label: "RSS / Atom" },
   { value: "html", label: "Página HTML (selectores CSS)" },
 ];

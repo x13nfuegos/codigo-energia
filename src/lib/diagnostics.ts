@@ -1,4 +1,4 @@
-import { googleNewsUrl, fetchText } from "./scraper";
+import { bingNewsUrl, googleNewsUrl, fetchText } from "./scraper";
 import { getStore, storeWarning } from "./store";
 import { supabaseEnv } from "./store/env";
 
@@ -62,6 +62,10 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
     timed("Google News (feed)", async () => {
       const x = await fetchText(googleNewsUrl("Vaca Muerta"), 15000);
       return `${(x.match(/<item>/g) ?? []).length} notas en el feed`;
+    }),
+    timed("Bing News (feed con fotos)", async () => {
+      const x = await fetchText(bingNewsUrl("Vaca Muerta"), 15000);
+      return `${(x.match(/<item>/g) ?? []).length} notas · ${(x.match(/<News:Image>/g) ?? []).length} con foto`;
     }),
     timed("Secretaría de Energía (datos.energia.gob.ar)", async () => {
       const t = await fetchText("https://datos.energia.gob.ar/api/3/action/resource_show?id=b5b58cdc-9e07-41f9-b392-fb9ec68b0725", 20000);

@@ -67,6 +67,36 @@ export function titleKey(t: string): string {
     .slice(0, 80);
 }
 
+/** Bing News en RSS: trae el link real de la nota (en el parámetro url) y una foto por noticia. */
+export function bingNewsUrl(query: string): string {
+  return `https://www.bing.com/news/search?q=${encodeURIComponent(query.replace(/\s*when:\d+[hd]/, ""))}&format=rss&cc=AR&setlang=es`;
+}
+
+function unwrapBing(u: string): string {
+  try {
+    const url = new URL(u);
+    if (/(^|\.)bing\.com$/.test(url.hostname) && url.searchParams.get("url")) return url.searchParams.get("url")!;
+  } catch {
+    /* URL inválida: se deja como está */
+  }
+  return u;
+}
+
+function bingImage(u?: string | null): string | null {
+  if (!u) return null;
+  try {
+    const url = new URL(u.replace(/^http:/, "https:"));
+    if (url.hostname.endsWith("bing.com") && url.pathname === "/th") {
+      url.searchParams.set("w", "800");
+      url.searchParams.set("h", "450");
+      url.searchParams.set("c", "7");
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function googleNewsUrl(query: string): string {
   const q = /when:\d+[hd]/.test(query) ? query : `${query} when:2d`;
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=es-419&gl=AR&ceid=AR:es-419`;
@@ -85,6 +115,8 @@ type FeedItem = {
   mediaThumbnail?: { $?: { url?: string } };
   source?: string | { _?: string };
   "content:encoded"?: string;
+  newsImage?: string;
+  newsSource?: string;
 };
 
 const parser: Parser<object, FeedItem> = new Parser({
@@ -94,6 +126,8 @@ const parser: Parser<object, FeedItem> = new Parser({
       ["media:thumbnail", "mediaThumbnail"],
       ["source", "source"],
       ["content:encoded", "content:encoded"],
+      ["News:Image", "newsImage"],
+      ["News:Source", "newsSource"],
     ],
   },
 });
@@ -112,6 +146,7 @@ export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawI
       let title = stripHtml(it.title!);
       let source_name: string | null = null;
       if (it.source) source_name = typeof it.source === "string" ? it.source : it.source._ ?? null;
+      if (it.newsSource) source_name = it.newsSource;
       if (isGoogleNews) {
         // "Titular - Medio" → separar el medio
         const m = title.match(/^(.*) - ([^-]{2,60})$/);
@@ -122,6 +157,7 @@ export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawI
       }
       const media = Array.isArray(it.mediaContent) ? it.mediaContent[0] : it.mediaContent;
       const image =
+        bingImage(it.newsImage) ??
         media?.$?.url ??
         it.mediaThumbnail?.$?.url ??
         (it.enclosure?.type?.startsWith("image") ? it.enclosure.url : undefined) ??
@@ -130,7 +166,7 @@ export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawI
       const rawSummary = isGoogleNews ? "" : it.contentSnippet || stripHtml(it.summary ?? it.content ?? "");
       return {
         title,
-        url: it.link!,
+        url: unwrapBing(it.link!),
         summary: truncate(stripHtml(rawSummary), 420),
         image,
         date: it.isoDate ?? (it.pubDate ? new Date(it.pubDate).toISOString() : null),
@@ -261,6 +297,8 @@ export async function fetchSource(source: Source): Promise<RawItem[]> {
   let items: RawItem[];
   if (source.type === "google_news") {
     items = await parseFeed(await fetchText(googleNewsUrl(source.url)), true);
+  } else if (source.type === "bing_news") {
+    items = await parseFeed(await fetchText(bingNewsUrl(source.url)));
   } else if (source.type === "rss") {
     items = await parseFeed(await fetchText(source.url));
   } else {
@@ -279,7 +317,10 @@ export interface SourceReport {
   error?: string;
 }
 
-export async function scrapeSource(source: Source, knownTitles: Set<string>, geo = makeGeolocator()): Promise<{ report: SourceReport; inserted: Article[] }> {
+/** Notas ya guardadas por título normalizado (para no duplicar entre medios y completar fotos). */
+export type KnownTitles = Map<string, { id: string; image: boolean; url: string }>;
+
+export async function scrapeSource(source: Source, knownTitles: KnownTitles, geo = makeGeolocator()): Promise<{ report: SourceReport; inserted: Article[] }> {
   const store = await getStore();
   const now = new Date().toISOString();
   try {
@@ -287,9 +328,17 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
     // el id se calcula con el link del feed (estable entre corridas), antes de resolver redirecciones
     const ids = raw.map((r) => articleId(r.url));
     const existing = await store.existingArticleIds(ids);
-    const fresh = raw
-      .map((r, i) => ({ ...r, id: ids[i] }))
-      .filter((r) => !existing.has(r.id) && !knownTitles.has(titleKey(r.title)));
+    const withIds = raw.map((r, i) => ({ ...r, id: ids[i] }));
+    // la misma noticia ya está guardada (de otra fuente) sin foto: se completa con la de esta fuente
+    for (const r of withIds) {
+      const k = knownTitles.get(titleKey(r.title));
+      const img = cleanImage(r.image);
+      if (k && !k.image && img && k.id !== r.id) {
+        await store.patch("articles", k.id, { image: img, enriched: true, ...(isGoogleNewsUrl(k.url) && !isGoogleNewsUrl(r.url) ? { url: normalizeUrl(r.url) } : {}) });
+        k.image = true;
+      }
+    }
+    const fresh = withIds.filter((r) => !existing.has(r.id) && !knownTitles.has(titleKey(r.title)));
 
     // Primero se guardan las notas (rápido); las de Google News se completan después con enrichMissing,
     // así un scrapeo lento nunca deja la portada vacía. En feeds directos se busca la imagen con tope de tiempo.
@@ -306,7 +355,7 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
     }
 
     const rows: Article[] = fresh.map((it) => {
-      knownTitles.add(titleKey(it.title));
+      knownTitles.set(titleKey(it.title), { id: it.id, image: !!cleanImage(it.image), url: it.url });
       const published = it.date && new Date(it.date) <= new Date() ? it.date : now;
       return {
         id: it.id,
@@ -342,7 +391,15 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   const settings = await store.getSettings();
   await store.saveSettings({ last_scrape_at: new Date().toISOString() });
   let all = await store.list("sources");
-  const { SOURCE_FIXES } = await import("./defaults");
+  const { SOURCE_FIXES, SOURCES_VERSION, SOURCES_ADDED, DEFAULT_SOURCES } = await import("./defaults");
+  if ((settings.sources_version ?? 1) < SOURCES_VERSION) {
+    // fuentes nuevas incorporadas en versiones posteriores (no revive las que se borraron antes)
+    const newIds = SOURCES_ADDED.filter((a) => a.version > (settings.sources_version ?? 1)).flatMap((a) => a.ids);
+    const missing = DEFAULT_SOURCES.filter((d) => newIds.includes(d.id) && !all.some((x) => x.id === d.id));
+    if (missing.length) await store.upsert("sources", missing as Source[]);
+    await store.saveSettings({ sources_version: SOURCES_VERSION });
+    all = await store.list("sources");
+  }
   for (const f of SOURCE_FIXES) {
     const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
     if (s) await store.patch("sources", s.id, f.patch);
@@ -350,7 +407,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   if (SOURCE_FIXES.some((f) => all.some((x) => x.id === f.id && x.url === f.oldUrl))) all = await store.list("sources");
   const sources = all.filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
   const recent = await store.queryArticles({ status: "all", limit: 400 });
-  const knownTitles = new Set(recent.map((a) => titleKey(a.title)));
+  const knownTitles: KnownTitles = new Map(recent.map((a) => [titleKey(a.title), { id: a.id, image: !!a.image, url: a.url }]));
   const geo = makeGeolocator(await store.list("map_points"));
 
   // Las fuentes van en serie para que la deduplicación por título funcione entre medios.
@@ -367,7 +424,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     for (const a of insertedAll.slice(0, 5)) {
       try {
         const r = await rewriteArticle(a);
-        await store.patch("articles", a.id, r);
+        await store.patch("articles", a.id, { ...r, tags: ["resumen:ia"] });
       } catch {
         /* se reintenta desde el back office */
       }

@@ -8,6 +8,7 @@ import { Img } from "@/components/Img";
 import { dateTime, hostname } from "@/lib/format";
 import { getStore } from "@/lib/store";
 import { categoryOf, getSettings } from "@/lib/site";
+import { TAG_AI, TAG_EXTRACT, ensureArticleSummary } from "@/lib/summary";
 
 async function load(id: string) {
   const a = await (await getStore()).get("articles", id);
@@ -26,11 +27,25 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function Nota({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const a = await load(id);
+  let a = await load(id);
   if (!a) notFound();
+  if (!a.body) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      // el resumen con IA tarda unos segundos: se genera en segundo plano y aparece en la próxima visita
+      const pending = a;
+      after(() => ensureArticleSummary(pending));
+    } else {
+      // el extracto es rápido: se intenta en el momento (con tope) para mostrarlo ya
+      await Promise.race([ensureArticleSummary(a), new Promise((r) => setTimeout(r, 6000))]);
+      a = (await load(id)) ?? a;
+    }
+  }
   const store = await getStore();
   const settings = await getSettings();
   const cat = categoryOf(settings, a.category);
+  const source = a.source_name || hostname(a.url) || settings.site_name;
+  const isExtract = (a.tags ?? []).includes(TAG_EXTRACT);
+  const isAi = (a.tags ?? []).includes(TAG_AI);
   after(() => store.incrementViews(a.id));
   const related = (await store.queryArticles({ category: a.category, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
 
@@ -49,23 +64,45 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
             📍 {a.geo.place} · Ver en el mapa
           </Link>
         )}
-        <Img src={a.image} alt={a.title} cat={cat} className="mt-6 aspect-[16/9] w-full rounded-xl" />
-        {a.body && (
-          <div className="prose-ce mt-8">
-            {a.body.split(/\n{2,}/).map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-        )}
+        {a.image && <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} className="mt-6 aspect-[16/9] w-full rounded-xl" priority />}
+        <section className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.15em] text-muted">
+            <span className="h-4 w-1.5 rounded-sm bg-accent" />
+            Resumen
+          </h2>
+          {a.body && isExtract ? (
+            <blockquote className="border-l-2 border-accent pl-4">
+              <p className="prose-ce italic">“{a.body}”</p>
+              <footer className="mt-2 text-sm text-dim">Extracto de {source}</footer>
+            </blockquote>
+          ) : a.body ? (
+            <div className="prose-ce">
+              {a.body.split(/\n{2,}/).map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted">{a.summary || "Estamos preparando el resumen de esta nota."}</p>
+          )}
+        </section>
+
         {a.url && (
-        <a
-          href={a.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 font-semibold text-accent-ink hover:brightness-110"
-        >
-          Leer la nota completa en {a.source_name || hostname(a.url)} ↗
-        </a>
+          <div className="mt-8 rounded-xl border border-line bg-surface p-5">
+            <div className="font-mono text-xs uppercase tracking-[0.15em] text-dim">Fuente</div>
+            <div className="mt-1 font-semibold">{source}</div>
+            <div className="mt-0.5 truncate text-sm text-dim">
+              {hostname(a.url)} · publicado {dateTime(a.published_at)}
+            </div>
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 font-semibold text-accent-ink hover:brightness-110"
+            >
+              Leer la nota original ↗
+            </a>
+            {isAi && <p className="mt-3 text-xs text-dim">Resumen redactado por Código Energía a partir de la nota original.</p>}
+          </div>
         )}
       </article>
       <aside>

@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { Header } from "@/components/Header";
-import { Newsroom } from "@/components/Newsroom";
-import { timeAgo } from "@/lib/format";
-import { getStore } from "@/lib/store";
 import { Logo, Tagline } from "@/components/Logo";
 import { Ticker } from "@/components/Ticker";
 import { maybeRefresh } from "@/lib/jobs";
@@ -12,19 +9,12 @@ import { getIndicators, getSettings } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [settings, indicators, latest] = await Promise.all([
-    getSettings(),
-    getIndicators(),
-    getStore().then((s) => s.queryArticles({ limit: 8 })),
-  ]);
+  const [settings, indicators] = await Promise.all([getSettings(), getIndicators()]);
   // Scrapeo / indicadores / resumen en segundo plano si corresponde (no bloquea la respuesta).
   after(() => maybeRefresh().catch((e) => console.error("maybeRefresh", e)));
   return (
     <>
       <Header settings={settings} />
-      {latest.length > 0 && (
-        <Newsroom items={latest.map((a) => ({ id: a.id, title: a.title, tag: a.category.replace(/-/g, ""), time: timeAgo(a.published_at).toLowerCase() }))} />
-      )}
       {settings.ticker_enabled && <Ticker items={indicators} />}
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-10">{children}</main>
       <footer className="mt-16 border-t border-line">

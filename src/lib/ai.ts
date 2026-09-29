@@ -99,7 +99,7 @@ export async function generateBrief(date = yesterdayAR()): Promise<DailyBrief> {
   return brief;
 }
 
-function extractArticleText(html: string): string {
+export function extractArticleText(html: string): string {
   const $ = cheerio.load(html);
   $("script,style,nav,header,footer,aside,form,iframe,noscript,figure").remove();
   const root = $("article").first().length ? $("article").first() : $("main").first().length ? $("main").first() : $("body");

@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   brief_video: false,
   // Servicio WMS público del SIG de la Secretaría de Energía. Desde el back office
   // se pueden explorar todas las capas del servidor y sumar las que hagan falta.
+  sources_version: 2,
   map_layers: [
     { id: "se-gasoductos-proy", label: "Gasoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidtransp_gasoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
     { id: "se-oleoductos-proy", label: "Oleoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidrocarburos_transporte_oleoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
@@ -39,6 +40,33 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const gn = (q: string) => q;
+
+/** Bing News: mismas búsquedas, con link directo al medio y foto de cada noticia. */
+const bing = (id: string, name: string, q: string, category: string): Omit<Source, "last_run_at" | "last_status" | "last_count"> => ({
+  id,
+  name: `Bing News · ${name}`,
+  type: "bing_news",
+  url: q,
+  category,
+  enabled: true,
+  auto_publish: true,
+  include_keywords: [],
+  exclude_keywords: ["fútbol", "horóscopo"],
+  max_items: 20,
+  fetch_meta: false,
+});
+
+export const BING_SOURCES = [
+  bing("bing-vaca-muerta", "Vaca Muerta", "Vaca Muerta petróleo", "oil-gas"),
+  bing("bing-petroleo", "Petróleo y gas", "YPF OR Vista OR Tecpetrol OR Pampa Energía petróleo gas Argentina", "oil-gas"),
+  bing("bing-mineria", "Minería", "minería Argentina litio cobre", "mineria"),
+  bing("bing-energia", "Energía", "energía eléctrica Argentina CAMMESA ENARSA", "energia"),
+  bing("bing-renovables", "Renovables", "parque solar eólico renovables Argentina", "renovables"),
+];
+
+/** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
+export const SOURCES_VERSION = 2;
+export const SOURCES_ADDED = [{ version: 2, ids: BING_SOURCES.map((s) => s.id) }];
 
 /**
  * Correcciones a fuentes que dejaron de funcionar: se aplican solas a bases existentes
@@ -171,6 +199,7 @@ export const DEFAULT_SOURCES: Omit<Source, "last_run_at" | "last_status" | "last
     max_items: 15,
     fetch_meta: false,
   },
+  ...BING_SOURCES,
 ];
 
 let order = 0;

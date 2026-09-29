@@ -54,7 +54,7 @@ export interface MapLayer {
   opacity: number;
 }
 
-export type SourceType = "rss" | "google_news" | "html";
+export type SourceType = "rss" | "google_news" | "bing_news" | "html";
 
 export interface HtmlSelectors {
   item: string;
@@ -224,6 +224,8 @@ export interface Settings {
   brief_audio: boolean;
   brief_video: boolean;
   map_layers: MapLayer[];
+  /** versión de las fuentes por defecto ya incorporadas a esta base */
+  sources_version?: number;
   last_scrape_at?: string | null;
   last_indicators_at?: string | null;
 }

@@ -7,7 +7,7 @@ import { getStore } from "@/lib/store";
 import { scrapeNow } from "../../actions";
 import { TestSource } from "./TestSource";
 
-const TYPE = { google_news: "Google News", rss: "RSS", html: "HTML" } as const;
+const TYPE = { google_news: "Google News", bing_news: "Bing News", rss: "RSS", html: "HTML" } as const;
 
 export default async function Fuentes({ searchParams }: { searchParams: FlashParams }) {
   const store = await getStore();

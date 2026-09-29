@@ -133,7 +133,9 @@ export async function rewriteArticleAction(id: string, returnTo: string) {
   if (!a) back(returnTo, "La nota no existe", true);
   try {
     const { rewriteArticle } = await import("@/lib/ai");
-    await store.patch("articles", id, await rewriteArticle(a));
+    const { TAG_AI } = await import("@/lib/summary");
+    const r = await rewriteArticle(a);
+    await store.patch("articles", id, { ...r, tags: [...(a.tags ?? []).filter((t) => !t.startsWith("resumen:")), TAG_AI] });
   } catch (e) {
     back(returnTo, errMsg(e), true);
   }
