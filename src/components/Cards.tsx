@@ -28,10 +28,11 @@ export function HeroCard({ a, cat }: P) {
 }
 
 export function ListItem({ a, cat }: P) {
+  if (!a.image) return null;
   return (
     <article className="flex gap-4 border-b border-line py-5 last:border-0">
       <Link href={`/nota/${a.id}`} className="shrink-0">
-        <Img src={a.image} alt="" cat={cat} label={a.source_name} fallback={`/cover/${a.id}?v=thumb`} className="h-24 w-24 rounded-lg md:h-28 md:w-40" />
+        <Img src={a.image} alt="" cat={cat} label={a.source_name} hideCardOnFail className="h-24 w-24 rounded-lg md:h-28 md:w-40" />
       </Link>
       <div className="min-w-0">
         <Link href={`/nota/${a.id}`}>
@@ -47,10 +48,11 @@ export function ListItem({ a, cat }: P) {
 }
 
 export function GridCard({ a, cat }: P) {
+  if (!a.image) return null;
   return (
     <article>
       <Link href={`/nota/${a.id}`} className="block">
-        <Img src={a.image} alt="" cat={cat} label={a.source_name} fallback={`/cover/${a.id}?v=thumb`} className="aspect-[4/3] w-full rounded-lg" />
+        <Img src={a.image} alt="" cat={cat} label={a.source_name} hideCardOnFail className="aspect-[4/3] w-full rounded-lg" />
       </Link>
       <div className="mt-3">
         <CategoryBadge cat={cat} />

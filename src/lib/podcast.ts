@@ -81,7 +81,7 @@ async function vimeoApi(id: string, hash?: string | null): Promise<Meta> {
     headers: { authorization: `bearer ${token}`, accept: "application/vnd.vimeo.*+json;version=3.4" },
     signal: AbortSignal.timeout(10000),
   });
-  if (!res.ok) return {};
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const j = (await res.json()) as { name?: string; description?: string | null; duration?: number; release_time?: string; created_time?: string; pictures?: { sizes?: { width: number; link: string }[] } };
   const pic = j.pictures?.sizes?.sort((a, b) => b.width - a.width)[0]?.link ?? null;
   return { title: j.name, description: cleanText(j.description), duration: j.duration ?? null, thumbnail: pic, ...isoDate(j.release_time ?? j.created_time) };
@@ -90,7 +90,7 @@ async function vimeoApi(id: string, hash?: string | null): Promise<Meta> {
 async function vimeoOembed(id: string, hash?: string | null): Promise<Meta> {
   const page = hash ? `https://vimeo.com/${id}/${hash}` : `https://vimeo.com/${id}`;
   const res = await fetch(`https://vimeo.com/api/oembed.json?width=1280&url=${encodeURIComponent(page)}`, { headers: UA, signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return {};
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const j = (await res.json()) as { title?: string; description?: string; thumbnail_url?: string; duration?: number; upload_date?: string };
   return { title: j.title ? decode(j.title) : undefined, description: cleanText(j.description), thumbnail: bigThumb(j.thumbnail_url), duration: j.duration ?? null, ...isoDate(j.upload_date) };
 }
@@ -98,7 +98,7 @@ async function vimeoOembed(id: string, hash?: string | null): Promise<Meta> {
 /** Página pública del video: og:title / og:description y el JSON-LD (descripción más completa). */
 async function vimeoPage(id: string, hash?: string | null): Promise<Meta> {
   const res = await fetch(hash ? `https://vimeo.com/${id}/${hash}` : `https://vimeo.com/${id}`, { headers: UA, signal: AbortSignal.timeout(12000) });
-  if (!res.ok) return {};
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const html = await res.text();
   const meta = (p: string) => html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${p}["'][^>]+content=["']([^"']*)["']`, "i"))?.[1];
   let ld: { name?: string; description?: string; uploadDate?: string; thumbnailUrl?: string | string[] } = {};
@@ -123,7 +123,7 @@ async function vimeoPage(id: string, hash?: string | null): Promise<Meta> {
 /** Configuración del reproductor: último recurso para título, duración y miniatura. */
 async function vimeoPlayer(id: string, hash?: string | null): Promise<Meta> {
   const res = await fetch(`https://player.vimeo.com/video/${id}/config${hash ? `?h=${hash}` : ""}`, { headers: { ...UA, referer: "https://codigoenergia.ar/" }, signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return {};
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const j = (await res.json()) as { video?: { title?: string; duration?: number; thumbs?: Record<string, string> } };
   const thumbs = j.video?.thumbs ?? {};
   return { title: j.video?.title, duration: j.video?.duration ?? null, thumbnail: thumbs["1280"] ?? thumbs.base ?? Object.values(thumbs).pop() ?? null };
@@ -211,4 +211,25 @@ export async function enrichPodcast(podcast: Podcast, save: (p: Podcast) => Prom
     }),
   );
   await save({ ...podcast, episodes });
+}
+
+/** Diagnóstico: qué devuelve cada vía de Vimeo para un episodio (para saber por qué no llegan los datos). */
+export async function debugVimeo(url: string): Promise<string> {
+  const v = parseVideo(url);
+  if (!v || v.provider !== "vimeo") return "no es un link de Vimeo";
+  const show = async (name: string, p: Promise<Meta>) => {
+    try {
+      const m = await p;
+      return m.title ? `${name}: OK “${m.title.slice(0, 40)}”${m.description ? ` + descripción (${m.description.length} car.)` : " sin descripción"}` : `${name}: sin datos`;
+    } catch (e) {
+      return `${name}: ${(e as Error).message}`;
+    }
+  };
+  const parts = await Promise.all([
+    process.env.VIMEO_ACCESS_TOKEN ? show("API", vimeoApi(v.id, v.hash)) : Promise.resolve("API: sin VIMEO_ACCESS_TOKEN"),
+    show("oEmbed", vimeoOembed(v.id, v.hash)),
+    show("página", vimeoPage(v.id, v.hash)),
+    show("reproductor", vimeoPlayer(v.id, v.hash)),
+  ]);
+  return parts.join(" · ");
 }

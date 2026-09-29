@@ -17,6 +17,7 @@ export function Img({
   priority = false,
   label,
   fallback,
+  hideCardOnFail = false,
 }: {
   src?: string | null;
   alt: string;
@@ -27,6 +28,8 @@ export function Img({
   label?: string | null;
   /** imagen generada a usar si la nota no tiene foto o la foto no carga (ej. /cover/{id}) */
   fallback?: string | null;
+  /** en listados: si la foto no carga de ninguna forma, se oculta la nota entera (nunca se muestra un recuadro sin foto) */
+  hideCardOnFail?: boolean;
 }) {
   const direct = (src?.startsWith("http://") ? proxied(src) : src) || fallback || null;
   const [current, setCurrent] = useState(direct);
@@ -41,7 +44,10 @@ export function Img({
   const onError = () => {
     if (src && current && !current.startsWith("/api/img") && current !== fallback) setCurrent(proxied(src));
     else if (fallback && current !== fallback) setCurrent(fallback);
-    else setFailed(true);
+    else {
+      if (hideCardOnFail) ref.current?.closest("article")?.style.setProperty("display", "none");
+      setFailed(true);
+    }
   };
 
   // si la imagen falló antes de hidratar, onError no se dispara: se revisa al montar

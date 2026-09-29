@@ -89,6 +89,20 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       if (st && !st.ok && !last?.audio_url) throw new Error(info);
       return info;
     }),
+    timed(
+      "Podcast: datos desde Vimeo",
+      async () => {
+        const { debugVimeo, DEFAULT_PODCAST, sortedEpisodes } = await import("./podcast");
+        const podcast = (await store.getSettings()).podcast ?? DEFAULT_PODCAST;
+        const [ep] = sortedEpisodes(podcast);
+        if (!ep) return "sin episodios";
+        const r = await debugVimeo(ep.url);
+        const saved = `guardado: “${ep.title}”, descripción ${ep.description ? `${ep.description.length} car.` : "vacía"}`;
+        if (!/OK/.test(r)) throw new Error(`${r} | ${saved}`);
+        return `${r} | ${saved}`;
+      },
+      30000,
+    ),
     timed("Yahoo Finance (WTI)", async () => {
       const j = JSON.parse(await fetchText("https://query1.finance.yahoo.com/v8/finance/chart/CL%3DF?range=5d&interval=1d", 15000));
       return `WTI ${j.chart?.result?.[0]?.meta?.regularMarketPrice ?? "sin dato"}`;
