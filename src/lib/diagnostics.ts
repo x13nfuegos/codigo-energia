@@ -40,7 +40,9 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
   const checks = await Promise.all([
     timed("Base: leer notas, fuentes e indicadores", async () => {
       const [a, s, i] = await Promise.all([store.countArticles({ status: "all" }), store.list("sources"), store.list("indicators")]);
-      return `${store.kind}: ${a} notas · ${s.length} fuentes (${s.filter((x) => x.enabled).length} activas) · ${i.length} indicadores (${i.filter((x) => x.value != null).length} con valor)`;
+      const recent = await store.queryArticles({ limit: 60 });
+      const withImg = recent.filter((x) => x.image).length;
+      return `${store.kind}: ${a} notas (${withImg}/${recent.length} recientes con imagen) · ${s.length} fuentes (${s.filter((x) => x.enabled).length} activas) · ${i.length} indicadores (${i.filter((x) => x.value != null).length} con valor)`;
     }),
     timed("Base: escribir", async () => {
       const s = await store.getSettings();
@@ -51,7 +53,7 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       const j = JSON.parse(await fetchText("https://query1.finance.yahoo.com/v8/finance/chart/CL%3DF?range=5d&interval=1d", 15000));
       return `WTI ${j.chart?.result?.[0]?.meta?.regularMarketPrice ?? "sin dato"}`;
     }),
-    timed("Stooq (respaldo)", async () => (await fetchText("https://stooq.com/q/l/?s=cl.f&f=sd2t2ohlcv&h&e=csv", 15000)).split("\n")[1] ?? "vacío"),
+    timed("Stooq (respaldo opcional)", async () => (await fetchText("https://stooq.com/q/l/?s=cl.f&f=sd2t2ohlcv&h&e=csv", 15000)).split("\n")[1] ?? "vacío"),
     timed("DolarAPI", async () => `oficial ${JSON.parse(await fetchText("https://dolarapi.com/v1/dolares/oficial", 15000)).venta}`),
     timed("BCRA", async () => {
       const t = await fetchText("https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones", 15000);

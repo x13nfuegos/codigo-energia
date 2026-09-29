@@ -341,7 +341,14 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   const store = await getStore();
   const settings = await store.getSettings();
   await store.saveSettings({ last_scrape_at: new Date().toISOString() });
-  const sources = (await store.list("sources")).filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
+  let all = await store.list("sources");
+  const { SOURCE_FIXES } = await import("./defaults");
+  for (const f of SOURCE_FIXES) {
+    const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
+    if (s) await store.patch("sources", s.id, f.patch);
+  }
+  if (SOURCE_FIXES.some((f) => all.some((x) => x.id === f.id && x.url === f.oldUrl))) all = await store.list("sources");
+  const sources = all.filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
   const recent = await store.queryArticles({ status: "all", limit: 400 });
   const knownTitles = new Set(recent.map((a) => titleKey(a.title)));
   const geo = makeGeolocator(await store.list("map_points"));

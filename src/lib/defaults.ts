@@ -40,6 +40,19 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const gn = (q: string) => q;
 
+/**
+ * Correcciones a fuentes que dejaron de funcionar: se aplican solas a bases existentes
+ * solo si la fuente sigue con la configuración vieja (no pisa cambios hechos en el back office).
+ */
+export const SOURCE_FIXES: { id: string; oldUrl: string; patch: Partial<Source> }[] = [
+  {
+    id: "energia-estrategica",
+    oldUrl: "https://www.energiaestrategica.com/feed/",
+    patch: { type: "google_news", url: "site:energiaestrategica.com Argentina", include_keywords: [], fetch_meta: false },
+  },
+  { id: "panorama-minero", oldUrl: "https://www.panorama-minero.com/feed/", patch: { type: "google_news", url: "site:panorama-minero.com", fetch_meta: false } },
+];
+
 export const DEFAULT_SOURCES: Omit<Source, "last_run_at" | "last_status" | "last_count">[] = [
   {
     id: "gn-vaca-muerta",
@@ -122,15 +135,15 @@ export const DEFAULT_SOURCES: Omit<Source, "last_run_at" | "last_status" | "last
   {
     id: "energia-estrategica",
     name: "Energía Estratégica",
-    type: "rss",
-    url: "https://www.energiaestrategica.com/feed/",
+    type: "google_news",
+    url: "site:energiaestrategica.com Argentina",
     category: "renovables",
     enabled: true,
     auto_publish: true,
-    include_keywords: ["Argentina", "argentin", "Chile", "Uruguay"],
+    include_keywords: [],
     exclude_keywords: [],
     max_items: 15,
-    fetch_meta: true,
+    fetch_meta: false,
   },
   {
     id: "surtidores",
@@ -148,15 +161,15 @@ export const DEFAULT_SOURCES: Omit<Source, "last_run_at" | "last_status" | "last
   {
     id: "panorama-minero",
     name: "Panorama Minero",
-    type: "rss",
-    url: "https://www.panorama-minero.com/feed/",
+    type: "google_news",
+    url: "site:panorama-minero.com",
     category: "mineria",
     enabled: true,
     auto_publish: true,
     include_keywords: [],
     exclude_keywords: [],
     max_items: 15,
-    fetch_meta: true,
+    fetch_meta: false,
   },
 ];
 
