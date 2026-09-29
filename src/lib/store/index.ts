@@ -1,4 +1,5 @@
 import type { Article, ArticleQuery, Settings, TableName, Tables } from "../types";
+import { supabaseEnv } from "./env";
 
 export interface Store {
   readonly kind: "supabase" | "json";
@@ -24,16 +25,27 @@ export function getStore(): Promise<Store> {
   return (g.__ceStore ??= createStore());
 }
 
+/** Si Supabase está configurado pero no se puede usar, se informa en el tablero del back office. */
+export let storeWarning: string | null = null;
+
 async function createStore(): Promise<Store> {
-  let store: Store;
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const env = supabaseEnv();
+  if (env.ok) {
     const { SupabaseStore } = await import("./supabase");
-    store = new SupabaseStore(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-  } else {
-    const { JsonStore } = await import("./json");
-    store = new JsonStore();
+    const sb = new SupabaseStore(env.url, env.key);
+    try {
+      await sb.ready();
+      storeWarning = null;
+      return sb;
+    } catch (e) {
+      // sin reintento inmediato: se usa el archivo local y en la próxima instancia se vuelve a probar
+      storeWarning = `Supabase configurado pero no disponible (${e instanceof Error ? e.message : String(e)}). Se está usando almacenamiento temporal.`;
+      console.error(storeWarning);
+      g.__ceStore = undefined;
+    }
   }
-  return store;
+  const { JsonStore } = await import("./json");
+  return new JsonStore();
 }
 
 export function filterArticles(all: Article[], q: ArticleQuery): Article[] {

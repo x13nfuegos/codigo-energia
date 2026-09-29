@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Flash, type FlashParams } from "@/components/admin/Flash";
 import { Submit } from "@/components/admin/Submit";
 import { dateTime, timeAgo } from "@/lib/format";
-import { getStore } from "@/lib/store";
+import { getStore, storeWarning } from "@/lib/store";
 import { generateBriefNow, refreshIndicatorsNow, scrapeNow } from "../actions";
 
 export default async function Dashboard({ searchParams }: { searchParams: FlashParams }) {
@@ -38,6 +38,7 @@ export default async function Dashboard({ searchParams }: { searchParams: FlashP
     <div className="max-w-5xl">
       <h1 className="mb-6 text-2xl font-bold">Tablero</h1>
       <Flash {...sp} />
+      {storeWarning && <Flash err={storeWarning} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stat("Notas publicadas", published, "/admin/notas")}
         {stat("Últimas 24 h", today)}

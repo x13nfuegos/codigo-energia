@@ -30,8 +30,9 @@ dispara el scrapeo y la actualización de indicadores en segundo plano.
 
 ## Puesta en producción
 
-1. **Supabase**: crear un proyecto, abrir *SQL Editor* y ejecutar `supabase/schema.sql` (crea las tablas y el bucket público `media`).
-   Copiar `Project URL` y la `service_role key` (Settings → API).
+1. **Supabase**: conectar un proyecto desde la integración de Supabase en Vercel (carga las variables solas) o crearlo a mano y
+   cargar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`. Si la base está vacía y existe `POSTGRES_URL` (la integración la carga),
+   el sitio crea las tablas solo al arrancar; si no, correr `supabase/schema.sql` en el *SQL Editor*.
 2. **Vercel**: *Add New Project* → importar este repositorio (sin cambiar Root Directory). Cargar las variables de
    `.env.example` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SECRET`, `CRON_SECRET`,
    `NEXT_PUBLIC_SITE_URL=https://codigoenergia.ar` y, para el resumen, `ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `HEYGEN_*`). Deploy.

@@ -17,6 +17,23 @@ export class SupabaseStore implements Store {
     return res.data;
   }
 
+  /** Verifica la conexión; si faltan las tablas intenta crearlas y después carga la configuración inicial. */
+  async ready(): Promise<void> {
+    const probe = await this.sb.from("settings").select("id").limit(1);
+    if (probe.error) {
+      const missing = /does not exist|schema cache|PGRST205|42P01/i.test(`${probe.error.message} ${(probe.error as { code?: string }).code ?? ""}`);
+      if (!missing) throw new Error(probe.error.message);
+      const { runSchema } = await import("./migrate");
+      await runSchema();
+      // PostgREST tarda unos segundos en ver las tablas nuevas
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        if (!(await this.sb.from("settings").select("id").limit(1)).error) break;
+      }
+    }
+    await this.ensureSeed();
+  }
+
   /** La primera vez que se usa una base vacía, carga la configuración inicial. */
   private ensureSeed(): Promise<void> {
     this.seeded ??= (async () => {

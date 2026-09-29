@@ -2,12 +2,14 @@ import { promises as fs } from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { getStore } from "./store";
+import { supabaseEnv } from "./store/env";
 import type { DailyBrief } from "./types";
 
 /** Guarda un archivo y devuelve su URL pública (Supabase Storage o /public/media en desarrollo). */
 export async function saveMedia(name: string, data: ArrayBuffer, contentType: string): Promise<string> {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const env = supabaseEnv();
+  if (env.ok) {
+    const sb = createClient(env.url, env.key, { auth: { persistSession: false } });
     const bucket = process.env.SUPABASE_MEDIA_BUCKET || "media";
     const { error } = await sb.storage.from(bucket).upload(name, data, { contentType, upsert: true });
     if (error) throw new Error(`Storage: ${error.message}`);

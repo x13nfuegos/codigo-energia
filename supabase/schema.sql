@@ -136,9 +136,12 @@ alter table map_points enable row level security;
 alter table briefs enable row level security;
 
 -- Bucket público para audios y videos del resumen diario
-insert into storage.buckets (id, name, public)
-values ('media', 'media', true)
-on conflict (id) do nothing;
+do $$
+begin
+  insert into storage.buckets (id, name, public) values ('media', 'media', true) on conflict (id) do nothing;
+exception when others then
+  raise notice 'No se pudo crear el bucket media (crealo a mano en Storage): %', sqlerrm;
+end $$;
 
 -- Si la base ya existía antes de la geolocalización de noticias:
 alter table articles add column if not exists geo jsonb;
