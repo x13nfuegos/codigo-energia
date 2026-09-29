@@ -290,13 +290,13 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
                 <div key={n.id} className={`flex gap-3 border-b border-line px-4 py-3 last:border-0 ${n.id === focus ? "bg-surface-2" : ""}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={n.image || `/cover/${n.id}`}
+                    src={n.image || `/cover/${n.id}?v=thumb`}
                     alt=""
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       const img = e.currentTarget;
-                      if (!img.src.includes("/cover/")) img.src = `/cover/${n.id}`;
+                      if (!img.src.includes("/cover/")) img.src = `/cover/${n.id}?v=thumb`;
                       else img.style.display = "none";
                     }}
                     className="h-14 w-20 shrink-0 rounded-md bg-surface-2 object-cover"

@@ -432,3 +432,10 @@ export async function deleteEpisode(id: string) {
   await store.saveSettings({ podcast: { ...podcast, episodes: podcast.episodes.filter((e) => e.id !== id) } });
   back("/admin/podcast", "Episodio eliminado");
 }
+
+export async function findMissingPhotos() {
+  await requireAdmin();
+  const { enrichMissing } = await import("@/lib/scraper");
+  const fixed = await enrichMissing(60, 45000);
+  back("/admin/diagnostico", `Búsqueda de fotos: ${fixed} notas ahora tienen foto`);
+}

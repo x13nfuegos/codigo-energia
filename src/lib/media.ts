@@ -24,8 +24,9 @@ export async function saveMedia(name: string, data: ArrayBuffer, contentType: st
 /** Locución del resumen con ElevenLabs. */
 export async function generateBriefAudio(brief: DailyBrief): Promise<string> {
   const key = process.env.ELEVENLABS_API_KEY;
-  const voice = process.env.ELEVENLABS_VOICE_ID;
-  if (!key || !voice) throw new Error("Faltan ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID");
+  // voz por defecto de la biblioteca de ElevenLabs; conviene elegir una en español rioplatense y cargar ELEVENLABS_VOICE_ID
+  const voice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+  if (!key) throw new Error("Falta ELEVENLABS_API_KEY");
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
     method: "POST",
     headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/mpeg" },

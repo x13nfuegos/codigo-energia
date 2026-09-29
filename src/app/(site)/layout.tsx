@@ -33,6 +33,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           </nav>
           <nav className="flex flex-col gap-2">
             <Link href="/podcast" className="hover:text-ink">Podcast</Link>
+            <Link href="/juego" className="hover:text-ink">Petrolero Runner</Link>
             <Link href="/resumen" className="hover:text-ink">Resumen diario</Link>
             <Link href="/mapa" className="hover:text-ink">Mapa energético</Link>
             <Link href="/indicadores" className="hover:text-ink">Indicadores</Link>

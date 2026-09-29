@@ -164,7 +164,8 @@ export type SectionType =
   | "map"
   | "daily_brief"
   | "html"
-  | "podcast";
+  | "podcast"
+  | "game";
 
 export interface Section {
   id: string;

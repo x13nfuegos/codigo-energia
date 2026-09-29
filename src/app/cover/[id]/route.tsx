@@ -31,7 +31,7 @@ function loadFonts(): Promise<Font[]> {
  * Portada generada para notas sin foto: título, sección y medio con la identidad del sitio.
  * No usa IA (sin costo) y la CDN la cachea una semana.
  */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [a, settings, fonts] = await Promise.all([(await getStore()).get("articles", id), getSettings(), loadFonts()]);
   const sans = fonts.some((f) => f.name === "Plex") ? "Plex" : "sans-serif";
@@ -46,6 +46,40 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const date = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" })
     .format(new Date(a.published_at))
     .replace(".", "");
+
+  const headers = { "cache-control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400" };
+
+  // variante para miniaturas chicas: sin titular (se lee al lado), sección y medio bien grandes
+  if (new URL(req.url).searchParams.get("v") === "thumb") {
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: 40,
+            backgroundColor: t.bg,
+            backgroundImage: `linear-gradient(135deg, ${cat.color} 0%, ${t.bg} 75%)`,
+            fontFamily: mono,
+          }}
+        >
+          <div style={{ display: "flex", color: "#fff", fontSize: 64, fontWeight: 700, lineHeight: 1 }}>{`<${cat.slug.replace(/-/g, "")}/>`}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", color: "#ffffffcc", fontSize: 30, textTransform: "uppercase", letterSpacing: 2 }}>{(a.source_name ?? cat.name).slice(0, 28)}</div>
+            <div style={{ display: "flex", fontSize: 30 }}>
+              <span style={{ color: "#ffffff88" }}>{"<"}</span>
+              <span style={{ color: t.accent, fontWeight: 700 }}>c</span>
+              <span style={{ color: "#ffffff88" }}>{"/>"}</span>
+            </div>
+          </div>
+        </div>
+      ),
+      { width: 600, height: 600, fonts: fonts.length ? fonts : undefined, headers },
+    );
+  }
 
   return new ImageResponse(
     (
@@ -83,6 +117,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         </div>
       </div>
     ),
-    { width: 1200, height: 675, fonts: fonts.length ? fonts : undefined, headers: { "cache-control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400" } },
+    { width: 1200, height: 675, fonts: fonts.length ? fonts : undefined, headers },
   );
 }

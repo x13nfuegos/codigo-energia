@@ -22,7 +22,7 @@ export default async function Dashboard({ searchParams }: { searchParams: FlashP
     ["Base de datos", store.kind === "supabase" ? "Supabase" : "Archivo local (solo desarrollo)", store.kind === "supabase"],
     ["Clave de administración", process.env.ADMIN_PASSWORD ? "configurada" : "falta", !!process.env.ADMIN_PASSWORD],
     ["Cron (CRON_SECRET)", process.env.CRON_SECRET ? "configurado" : "falta", !!process.env.CRON_SECRET],
-    ["IA (Anthropic)", process.env.ANTHROPIC_API_KEY ? "configurada" : "falta: sin resumen ni reescritura", !!process.env.ANTHROPIC_API_KEY],
+    ["IA", process.env.GEMINI_API_KEY ? "Gemini" + (process.env.ANTHROPIC_API_KEY ? " + Anthropic" : "") : process.env.ANTHROPIC_API_KEY ? "Anthropic" : "falta: sin resúmenes con IA", !!(process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY)],
     ["Audio (ElevenLabs)", process.env.ELEVENLABS_API_KEY ? "configurado" : "falta", !!process.env.ELEVENLABS_API_KEY],
     ["Video (HeyGen)", process.env.HEYGEN_API_KEY ? "configurado" : "falta", !!process.env.HEYGEN_API_KEY],
   ] as const;

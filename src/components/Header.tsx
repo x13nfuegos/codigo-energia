@@ -15,6 +15,7 @@ export function Header({ settings }: { settings: Settings }) {
     })),
     { href: "/mapa", label: "Mapa" },
     { href: "/podcast", label: "Podcast" },
+    { href: "/juego", label: "Juego" },
     { href: "/resumen", label: "Resumen diario" },
     { href: "/indicadores", label: "Indicadores" },
   ];

@@ -8,6 +8,7 @@ import { after } from "next/server";
 import { enrichPodcast, sortedEpisodes } from "@/lib/podcast";
 import { BriefCard } from "./BriefCard";
 import { PodcastPlayer } from "./PodcastPlayer";
+import { PetroleroRunner } from "./game/PetroleroRunner";
 import { GridCard, HeroCard, ListItem, SectionTitle } from "./Cards";
 import { Counters } from "./Counters";
 import { IndicatorsPanel } from "./IndicatorsPanel";
@@ -125,6 +126,15 @@ export async function SectionBlock({ section, settings }: { section: Section; se
         <section>
           <SectionTitle title={section.title || podcast.title} href="/podcast" />
           <PodcastPlayer episodes={sortedEpisodes(podcast).slice(0, section.limit || 4)} compact />
+        </section>
+      );
+    }
+    case "game": {
+      const latest = await store.queryArticles({ limit: 30 });
+      return (
+        <section>
+          <SectionTitle title={section.title || "Petrolero Runner"} href="/juego" />
+          <PetroleroRunner compact headlines={latest.map((a) => ({ id: a.id, title: a.title, tag: a.category.replace(/-/g, "") }))} />
         </section>
       );
     }

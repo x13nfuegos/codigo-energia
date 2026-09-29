@@ -61,7 +61,7 @@ export async function maybeRefresh() {
     await Promise.allSettled(tasks);
 
     const hourAR = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hourCycle: "h23" }).format(new Date()));
-    if (process.env.ANTHROPIC_API_KEY && hourAR >= s.brief_hour && !(await store.get("briefs", yesterdayAR()))) {
+    if ((process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY) && hourAR >= s.brief_hour && !(await store.get("briefs", yesterdayAR()))) {
       await runDailyBrief().catch(() => undefined);
     }
     await checkPendingVideos().catch(() => undefined);

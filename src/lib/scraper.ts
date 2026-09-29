@@ -400,21 +400,8 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     await store.saveSettings({ sources_version: SOURCES_VERSION });
     all = await store.list("sources");
   }
-  const { SECTIONS_VERSION, SECTIONS_ADDED, DEFAULT_SECTIONS } = await import("./defaults");
-  if ((settings.sections_version ?? 1) < SECTIONS_VERSION) {
-    const sections = (await store.list("sections")).sort((a, b) => a.order - b.order);
-    const newIds = SECTIONS_ADDED.filter((a) => a.version > (settings.sections_version ?? 1)).flatMap((a) => a.ids);
-    for (const id of newIds) {
-      const def = DEFAULT_SECTIONS.find((d) => d.id === id);
-      if (!def || sections.some((x) => x.id === id || x.type === def.type)) continue;
-      // se ubica después del mapa (o de "Últimas noticias")
-      const after = sections.findIndex((x) => x.type === "map");
-      const at = after >= 0 ? after + 1 : Math.min(3, sections.length);
-      sections.splice(at, 0, def);
-    }
-    await store.upsert("sections", sections.map((x, i) => ({ ...x, order: i })));
-    await store.saveSettings({ sections_version: SECTIONS_VERSION });
-  }
+  const { runSectionMigrations } = await import("./migrations");
+  await runSectionMigrations();
   for (const f of SOURCE_FIXES) {
     const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
     if (s) await store.patch("sources", s.id, f.patch);
@@ -473,22 +460,63 @@ export async function geotagArticles(force = false, limit = 500): Promise<{ chec
   return { checked: list.length, tagged };
 }
 
-/** Busca imagen (y la URL real) para notas recientes que quedaron sin foto. */
+/** Similitud entre titulares (palabras en común), para reconocer la misma noticia en otro buscador. */
+function titleSimilarity(a: string, b: string): number {
+  const words = (t: string) => new Set(titleKey(t).split(" ").filter((w) => w.length > 3));
+  const A = words(a);
+  const B = words(b);
+  if (!A.size || !B.size) return 0;
+  let common = 0;
+  for (const w of A) if (B.has(w)) common++;
+  return common / Math.min(A.size, B.size);
+}
+
+/** Busca la misma noticia en Bing News por su titular y devuelve foto y link directo si la encuentra. */
+export async function findImageByTitle(title: string): Promise<{ image: string; url: string } | null> {
+  const items = await parseFeed(await fetchText(bingNewsUrl(`"${title.slice(0, 120)}"`), 10000));
+  const hit = items.find((it) => cleanImage(it.image) && titleSimilarity(it.title, title) >= 0.6);
+  return hit ? { image: cleanImage(hit.image)!, url: hit.url } : null;
+}
+
+const TAG_PHOTO_SEARCHED = "foto:buscada";
+
+/** Busca imagen (y la URL real) para notas recientes que quedaron sin foto: página original y, si no, Bing por titular. */
 export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<number> {
   const store = await getStore();
   const deadline = Date.now() + budgetMs;
-  const pending = (await store.queryArticles({ status: "all", limit: 200 })).filter((a) => !a.image && !a.enriched).slice(0, limit);
+  const pending = (await store.queryArticles({ status: "all", limit: 200 }))
+    .filter((a) => !a.image && (!a.enriched || !(a.tags ?? []).includes(TAG_PHOTO_SEARCHED)))
+    .slice(0, limit);
   let fixed = 0;
   await mapLimit(pending, 4, async (a) => {
     if (Date.now() > deadline) return;
     const it: RawItem = { title: a.title, url: a.url, summary: a.summary, image: null, date: a.published_at };
-    try {
-      await enrichItem(it);
-    } catch {
-      /* se marca igual para no reintentar siempre */
+    if (!a.enriched) {
+      try {
+        await enrichItem(it);
+      } catch {
+        /* se sigue con la búsqueda por titular */
+      }
+    }
+    if (!it.image) {
+      try {
+        const found = await findImageByTitle(a.title);
+        if (found) {
+          it.image = found.image;
+          if (isGoogleNewsUrl(it.url)) it.url = found.url;
+        }
+      } catch {
+        /* sin foto: se usa la portada generada */
+      }
     }
     if (it.image) fixed++;
-    await store.patch("articles", a.id, { image: it.image ?? null, summary: a.summary || it.summary, url: normalizeUrl(it.url), enriched: true });
+    await store.patch("articles", a.id, {
+      image: it.image ?? null,
+      summary: a.summary || it.summary,
+      url: normalizeUrl(it.url),
+      enriched: true,
+      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_SEARCHED), TAG_PHOTO_SEARCHED],
+    });
   });
   return fixed;
 }

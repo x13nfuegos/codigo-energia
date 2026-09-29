@@ -110,6 +110,7 @@ export const SCHEMAS: Partial<Record<TableName, Field[]>> = {
         { value: "map", label: "Mapa" },
         { value: "daily_brief", label: "Resumen diario" },
         { value: "podcast", label: "Podcast (último episodio + lista)" },
+        { value: "game", label: "Juego Petrolero Runner" },
         { value: "html", label: "HTML libre (banner, embed)" },
       ],
     },

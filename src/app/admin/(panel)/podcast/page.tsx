@@ -63,7 +63,7 @@ export default async function PodcastAdmin({ searchParams }: { searchParams: Fla
             <summary className="flex cursor-pointer list-none items-center gap-3">
               <div className="h-12 w-20 shrink-0 overflow-hidden rounded bg-surface-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {e.thumbnail && <img src={e.thumbnail} alt="" className="h-full w-full object-cover" />}
+                <img src={e.thumbnail || `/podcast-cover/${e.id}`} alt="" className="h-full w-full object-cover" />
               </div>
               <div className="min-w-0">
                 <div className="font-mono text-xs text-dim">

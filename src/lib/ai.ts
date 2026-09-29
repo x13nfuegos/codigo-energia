@@ -70,15 +70,24 @@ export async function generateBrief(date = yesterdayAR()): Promise<DailyBrief> {
     .map((a) => `- [${a.id}] (${catName[a.category] ?? a.category} · ${a.source_name ?? ""}) ${a.title}${a.summary ? ` — ${truncate(a.summary, 280)}` : ""}`)
     .join("\n");
 
-  const out = await askJson<Omit<DailyBrief, "id" | "date" | "created_at">>(
-    settings.brief_prompt,
+  const task =
     `Fecha del resumen: ${date}.\n\nEstas son las notas publicadas (id entre corchetes):\n${list}\n\n` +
-      "Armá el resumen del día. Usá solo información de estas notas; no inventes cifras. " +
-      "Agrupá temas repetidos y ordená por relevancia para el sector energético argentino. " +
-      "El guion es para una locutora o un avatar: frases cortas, comenzá con un saludo y la fecha, cerrá con \"Esto fue el resumen de Código Energía\".",
-    BRIEF_SCHEMA,
-    "medium",
-  );
+    "Armá el resumen del día. Usá solo información de estas notas; no inventes cifras. " +
+    "Agrupá temas repetidos y ordená por relevancia para el sector energético argentino. " +
+    "El guion es para una locutora o un avatar: frases cortas, comenzá con un saludo y la fecha, cerrá con \"Esto fue el resumen de Código Energía\".";
+  type BriefOut = Omit<DailyBrief, "id" | "date" | "created_at">;
+  // con clave de Anthropic se usa Claude (una vez por día); si no, la IA económica (Gemini)
+  const out = process.env.ANTHROPIC_API_KEY
+    ? await askJson<BriefOut>(settings.brief_prompt, task, BRIEF_SCHEMA, "medium")
+    : await cheapJson<BriefOut>(
+        `${settings.brief_prompt}\nRespondé solo con JSON con estas claves: title (titular, máx. 90 caracteres), bullets (5 a 8 oraciones), ` +
+          "text (3 a 6 párrafos separados por una línea en blanco), script (guion de locución de 90 a 120 segundos, sin símbolos, números escritos para leerse en voz alta), " +
+          "article_ids (ids de las notas usadas).",
+        task,
+        4000,
+      );
+  out.bullets ??= [];
+  out.article_ids ??= [];
 
   const existing = await store.get("briefs", date);
   const brief: DailyBrief = {

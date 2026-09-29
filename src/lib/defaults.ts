@@ -33,7 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Servicio WMS público del SIG de la Secretaría de Energía. Desde el back office
   // se pueden explorar todas las capas del servidor y sumar las que hagan falta.
   sources_version: 2,
-  sections_version: 2,
+  sections_version: 3,
   podcast: DEFAULT_PODCAST,
   map_layers: [
     { id: "se-gasoductos-proy", label: "Gasoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidtransp_gasoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
@@ -68,8 +68,11 @@ export const BING_SOURCES = [
 ];
 
 /** Bloques de portada agregados en versiones posteriores (se suman una vez a bases existentes). */
-export const SECTIONS_VERSION = 2;
-export const SECTIONS_ADDED = [{ version: 2, ids: ["podcast"] }];
+export const SECTIONS_VERSION = 3;
+export const SECTIONS_ADDED = [
+  { version: 2, ids: ["podcast"] },
+  { version: 3, ids: ["juego"] },
+];
 
 /** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
 export const SOURCES_VERSION = 2;
@@ -270,6 +273,7 @@ export const DEFAULT_SECTIONS: Section[] = [
   sec({ id: "ultimas", type: "list", title: "Últimas noticias", limit: 6, offset: 1 }),
   sec({ id: "mapa", type: "map", title: "El mapa de la energía", limit: 0 }),
   sec({ id: "podcast", type: "podcast", title: "Código Energía Podcast", limit: 4 }),
+  sec({ id: "juego", type: "game", title: "Petrolero Runner", limit: 0 }),
   sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
   sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
   sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 3 }),
