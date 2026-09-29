@@ -51,6 +51,11 @@ export async function cheapJson<T>(system: string, prompt: string, maxTokens = 9
     };
     let model = geminiModel ?? process.env.AI_MODEL ?? DEFAULT_GEMINI;
     let { res, json } = await call(model);
+    // 503 (demanda alta) y 429 (límite) suelen ser momentáneos: dos reintentos con espera creciente
+    for (let i = 1; i <= 2 && (res.status === 503 || res.status === 429); i++) {
+      await new Promise((r) => setTimeout(r, 2000 * i));
+      ({ res, json } = await call(model));
+    }
     // Google retira modelos viejos: si el error sugiere uno nuevo ("use models/xxx"), se reintenta con ese y se recuerda
     const suggested = !res.ok ? json.error?.message?.match(/models\/([\w.-]+)/g)?.map((m) => m.slice(7).replace(/\.+$/, "")).find((m) => m !== model) : undefined;
     if (suggested) {
