@@ -141,7 +141,7 @@ export async function igCandidates(limit = 8): Promise<Article[]> {
   const done = new Set(ig.posts.filter((p) => p.ok).map((p) => p.article_id));
   const failed = new Map<string, number>();
   for (const p of ig.posts) if (!p.ok) failed.set(p.article_id, (failed.get(p.article_id) ?? 0) + 1);
-  const list = await store.queryArticles({ since: new Date(Date.now() - 36 * 3600000).toISOString(), limit: 120, hasImage: true });
+  const list = await store.queryArticles({ since: new Date(Date.now() - 36 * 3600000).toISOString(), limit: 120, photoOk: true });
   const score = (a: Article) => (a.featured ? 1000 : 0) + (a.views ?? 0) * 3 + ((a.tags ?? []).includes("foto:ok") ? 20 : 0) - (Date.now() - new Date(a.published_at).getTime()) / 3600000;
   return list
     .filter((a) => !done.has(a.id) && (failed.get(a.id) ?? 0) < 2)

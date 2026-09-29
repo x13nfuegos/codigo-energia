@@ -285,6 +285,8 @@ export interface ArticleQuery {
   hasGeo?: boolean;
   /** solo notas con foto (listados públicos) */
   hasImage?: boolean;
+  /** solo notas cuya foto ya se verificó que carga (tag foto:ok) */
+  photoOk?: boolean;
 }
 
 export interface InstagramPost {

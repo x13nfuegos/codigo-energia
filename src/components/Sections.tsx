@@ -17,7 +17,7 @@ import { MapLoader } from "./MapLoader";
 export async function SectionBlock({ section, settings }: { section: Section; settings: Settings }) {
   const store = await getStore();
   const cat = (slug: string) => categoryOf(settings, slug);
-  const q = { category: section.category ? categoryFamily(settings, section.category) : undefined, limit: section.limit || 6, offset: section.offset ?? 0, hasImage: true };
+  const q = { category: section.category ? categoryFamily(settings, section.category) : undefined, limit: section.limit || 6, offset: section.offset ?? 0, photoOk: true };
   const more = section.category ? `/seccion/${section.category}` : undefined;
 
   switch (section.type) {

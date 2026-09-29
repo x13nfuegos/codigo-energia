@@ -48,7 +48,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const isExtract = (a.tags ?? []).includes(TAG_EXTRACT);
   const isAi = (a.tags ?? []).some((t) => t === TAG_AI || t === "resumen:ia");
   after(() => store.incrementViews(a.id));
-  const related = (await store.queryArticles({ category: a.category, hasImage: true, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
+  const related = (await store.queryArticles({ category: a.category, photoOk: true, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
 
   return (
     <div className="grid gap-12 lg:grid-cols-[1fr_320px]">

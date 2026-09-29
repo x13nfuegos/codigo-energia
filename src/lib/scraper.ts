@@ -428,7 +428,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
 
   if (!onlySourceId) {
     await enrichMissing(40, 60000).catch(() => undefined);
-    await verifyPhotos(20, 25000).catch(() => undefined);
+    await verifyPhotos(60, 40000).catch(() => undefined);
   }
 
   let removed = 0;
@@ -505,13 +505,16 @@ export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<numbe
         /* sin foto: se usa la portada generada */
       }
     }
+    // la foto encontrada se prueba en el momento: si carga, la nota ya puede aparecer en la portada
+    const works = it.image ? await photoWorks(it.image).catch(() => false) : false;
+    if (!works) it.image = null;
     if (it.image) fixed++;
     await store.patch("articles", a.id, {
       image: it.image ?? null,
       summary: a.summary || it.summary,
       url: normalizeUrl(it.url),
       enriched: true,
-      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_SEARCHED), TAG_PHOTO_SEARCHED],
+      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_SEARCHED && t !== TAG_PHOTO_OK), TAG_PHOTO_SEARCHED, ...(works ? [TAG_PHOTO_OK] : [])],
     });
   });
   return fixed;
@@ -544,7 +547,7 @@ export async function verifyPhotos(limit = 30, budgetMs = 45000): Promise<{ chec
   let checked = 0;
   let replaced = 0;
   let removed = 0;
-  await mapLimit(pending, 4, async (a) => {
+  await mapLimit(pending, 8, async (a) => {
     if (Date.now() > deadline || !a.image) return;
     checked++;
     let image: string | null = a.image;

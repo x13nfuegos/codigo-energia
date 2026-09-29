@@ -49,7 +49,8 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       const [a, s, i] = await Promise.all([store.countArticles({ status: "all" }), store.list("sources"), store.list("indicators")]);
       const recent = await store.queryArticles({ limit: 60 });
       const withImg = recent.filter((x) => x.image).length;
-      return `${store.kind}: ${a} notas (${withImg}/${recent.length} recientes con imagen) · ${s.length} fuentes (${s.filter((x) => x.enabled).length} activas) · ${i.length} indicadores (${i.filter((x) => x.value != null).length} con valor)`;
+      const verified = recent.filter((x) => x.image && (x.tags ?? []).includes("foto:ok")).length;
+      return `${store.kind}: ${a} notas (${withImg}/${recent.length} recientes con imagen, ${verified} verificadas y visibles en portada) · ${s.length} fuentes (${s.filter((x) => x.enabled).length} activas) · ${i.length} indicadores (${i.filter((x) => x.value != null).length} con valor)`;
     }),
     timed("Base: escribir", async () => {
       const s = await store.getSettings();

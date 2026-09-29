@@ -65,6 +65,7 @@ export function filterArticles(all: Article[], q: ArticleQuery): Article[] {
       (!q.since || a.published_at >= q.since) &&
       (!q.hasGeo || !!a.geo) &&
       (!q.hasImage || !!a.image) &&
+      (!q.photoOk || (!!a.image && (a.tags ?? []).includes("foto:ok"))) &&
       (!s || a.title.toLowerCase().includes(s) || a.summary.toLowerCase().includes(s)),
   );
   out = out.sort((a, b) =>

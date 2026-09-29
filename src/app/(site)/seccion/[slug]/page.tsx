@@ -27,8 +27,8 @@ export default async function Seccion({ params, searchParams }: { params: Promis
   const subs = subCategories(settings, slug);
   const store = await getStore();
   const [list, total, map] = await Promise.all([
-    store.queryArticles({ category: family, hasImage: true, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }),
-    store.countArticles({ category: family, hasImage: true }),
+    store.queryArticles({ category: family, photoOk: true, limit: PER_PAGE, offset: (page - 1) * PER_PAGE }),
+    store.countArticles({ category: family, photoOk: true }),
     page === 1 ? getMapData({ category: family }) : null,
   ]);
   const cat = (s: string) => categoryOf(settings, s);

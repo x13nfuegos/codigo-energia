@@ -444,8 +444,8 @@ export async function deleteEpisode(id: string) {
 export async function findMissingPhotos() {
   await requireAdmin();
   const { enrichMissing, verifyPhotos } = await import("@/lib/scraper");
+  const v = await verifyPhotos(120, 30000);
   const fixed = await enrichMissing(40, 25000);
-  const v = await verifyPhotos(30, 25000);
   back(
     "/admin/diagnostico",
     `Fotos: ${fixed} notas consiguieron foto · ${v.checked} revisadas, ${v.replaced} reemplazadas, ${v.removed} sin foto válida (no se muestran en la portada)`,

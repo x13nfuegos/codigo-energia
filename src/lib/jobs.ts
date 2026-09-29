@@ -53,6 +53,7 @@ export async function checkPendingVideos() {
 }
 
 let running = false;
+let lastPhotoCheck = 0;
 
 /**
  * Actualización "perezosa": cada visita revisa si pasó el intervalo configurado
@@ -70,6 +71,11 @@ export async function maybeRefresh() {
     if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(refreshIndicators({ fast: true }));
     if (ago(s.last_scrape_at) >= s.scrape_every_min) tasks.push(runScrape());
     await Promise.allSettled(tasks);
+    if (Date.now() - lastPhotoCheck > 10 * 60000) {
+      lastPhotoCheck = Date.now();
+      const { verifyPhotos } = await import("./scraper");
+      await verifyPhotos(60, 30000).catch(() => undefined);
+    }
 
     const hourAR = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hourCycle: "h23" }).format(new Date()));
     if ((process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY) && hourAR >= s.brief_hour && !(await store.get("briefs", yesterdayAR()))) {
