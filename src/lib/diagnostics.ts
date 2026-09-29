@@ -1,5 +1,5 @@
 import { bingNewsUrl, googleNewsUrl, fetchText } from "./scraper";
-import { cheapProvider } from "./llm";
+import { DEFAULT_GEMINI, cheapProvider } from "./llm";
 import { getStore, storeWarning } from "./store";
 import { supabaseEnv } from "./store/env";
 
@@ -37,7 +37,7 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
     "Postgres (crear tablas)": env.pg ? "configurado" : "no configurado",
     "Aviso del almacenamiento": storeWarning ?? "ninguno",
     "IA para resúmenes": cheapProvider()
-      ? `${cheapProvider()} · ${process.env.AI_MODEL || (cheapProvider() === "gemini" ? "gemini-2.5-flash" : "claude-haiku-4-5")}`
+      ? `${cheapProvider()} · ${process.env.AI_MODEL || (cheapProvider() === "gemini" ? DEFAULT_GEMINI : "claude-haiku-4-5")}`
       : "sin IA (se muestra un extracto de la nota original)",
   };
   const store = await getStore();

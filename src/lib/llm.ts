@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 /**
  * IA económica para tareas cortas (resumen de cada nota).
  * Proveedor: AI_PROVIDER=gemini|anthropic (si no se define, se usa el que tenga clave; Gemini primero por costo).
- * Modelo: AI_MODEL (por defecto gemini-2.5-flash o claude-haiku-4-5).
+ * Modelo: AI_MODEL (por defecto gemini-3.8-flash o claude-haiku-4-5).
  */
 export function cheapProvider(): "gemini" | "anthropic" | null {
   const p = process.env.AI_PROVIDER?.toLowerCase();
@@ -24,25 +24,41 @@ function parseJson<T>(text: string): T {
 
 let anthropicClient: Anthropic | null = null;
 
+/** Modelo de Gemini por defecto (Google fue retirando gemini-2.5-flash para cuentas nuevas). */
+export const DEFAULT_GEMINI = "gemini-3.8-flash";
+/** Último modelo de Gemini que respondió bien (si hubo que cambiar por uno sugerido por Google). */
+let geminiModel: string | null = null;
+
 export async function cheapJson<T>(system: string, prompt: string, maxTokens = 900): Promise<T> {
   const provider = cheapProvider();
   if (provider === "gemini") {
-    const model = process.env.AI_MODEL || "gemini-2.5-flash";
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens, temperature: 0.4 },
-      }),
-      signal: AbortSignal.timeout(45000),
-    });
-    const json = (await res.json().catch(() => ({}))) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-      error?: { message?: string };
+    const call = async (model: string) => {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens, temperature: 0.4 },
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+        error?: { message?: string };
+      };
+      return { res, json };
     };
+    let model = geminiModel ?? process.env.AI_MODEL ?? DEFAULT_GEMINI;
+    let { res, json } = await call(model);
+    // Google retira modelos viejos: si el error sugiere uno nuevo ("use models/xxx"), se reintenta con ese y se recuerda
+    const suggested = !res.ok ? json.error?.message?.match(/models\/([\w.-]+)/g)?.map((m) => m.slice(7).replace(/\.+$/, "")).find((m) => m !== model) : undefined;
+    if (suggested) {
+      model = suggested;
+      ({ res, json } = await call(model));
+    }
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${json.error?.message ?? "error"}`);
+    geminiModel = model;
     return parseJson<T>(json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "");
   }
   if (provider === "anthropic") {

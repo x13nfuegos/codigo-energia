@@ -32,8 +32,8 @@ export const DEFAULT_SETTINGS: Settings = {
   brief_video: false,
   // Servicio WMS público del SIG de la Secretaría de Energía. Desde el back office
   // se pueden explorar todas las capas del servidor y sumar las que hagan falta.
-  sources_version: 2,
-  sections_version: 3,
+  // sources_version / sections_version NO van acá: si vinieran por defecto, las bases existentes creerían
+  // que ya incorporaron las fuentes y bloques nuevos. Las bases nuevas los suman igual sin duplicar.
   podcast: DEFAULT_PODCAST,
   map_layers: [
     { id: "se-gasoductos-proy", label: "Gasoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidtransp_gasoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
@@ -68,15 +68,14 @@ export const BING_SOURCES = [
 ];
 
 /** Bloques de portada agregados en versiones posteriores (se suman una vez a bases existentes). */
-export const SECTIONS_VERSION = 3;
-export const SECTIONS_ADDED = [
-  { version: 2, ids: ["podcast"] },
-  { version: 3, ids: ["juego"] },
-];
+// v4: se reaplica podcast + juego (una versión anterior guardaba la versión por defecto sin haberlos sumado)
+export const SECTIONS_VERSION = 4;
+export const SECTIONS_ADDED = [{ version: 4, ids: ["podcast", "juego"] }];
 
 /** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
-export const SOURCES_VERSION = 2;
-export const SOURCES_ADDED = [{ version: 2, ids: BING_SOURCES.map((s) => s.id) }];
+// v3: se reaplica Bing (mismo motivo que SECTIONS_VERSION)
+export const SOURCES_VERSION = 3;
+export const SOURCES_ADDED = [{ version: 3, ids: BING_SOURCES.map((s) => s.id) }];
 
 /**
  * Correcciones a fuentes que dejaron de funcionar: se aplican solas a bases existentes

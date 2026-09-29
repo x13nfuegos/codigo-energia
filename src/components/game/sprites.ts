@@ -3,14 +3,18 @@
  * cada carácter es un color de la paleta y "." es transparente.
  */
 export const PALETTE: Record<string, string> = {
-  Y: "#f5c400", // casco
-  y: "#c99a00", // ala del casco
+  // petrolero (referencia: casco blanco, anteojos de seguridad, mameluco azul con bandas reflectivas)
+  H: "#f4f6f8", // casco blanco
+  h: "#c3ccd6", // ala / sombra del casco
+  A: "#d9e28a", // lente de los anteojos
+  Z: "#9a9a9a", // pelo canoso bajo el casco
+  U: "#233257", // mameluco azul marino
+  u: "#172241", // sombra del mameluco
+  T: "#6b4f36", // botines marrones
+  I: "#ffffff", // logo en el pecho
   S: "#f1c27d", // piel
   K: "#1b1b1b", // ojos / detalles
-  O: "#e8742a", // mameluco
-  o: "#b8561c", // sombra del mameluco
   R: "#e6edf2", // banda reflectiva
-  G: "#3a3f47", // guantes
   B: "#2b2b2b", // botas
   D: "#7a1f1f", // barril
   d: "#4a1212", // aros del barril
@@ -27,50 +31,50 @@ export const PALETTE: Record<string, string> = {
 };
 
 const H = [
-  "...YYYYY....",
-  "..YYYYYYY...",
-  ".yyyyyyyyyy.",
+  "...HHHHH....",
+  "..HHHHHHH...",
+  ".hhhhhhhhhh.",
+  "...ZSSSSS...",
+  "...SSAKAA...",
   "...SSSSSS...",
-  "...SSSSKS...",
-  "...SSSSSS...",
-  "..OOOOOOO...",
-  ".GOOOOOOOG..",
-  ".GRRRRRRRG..",
-  "..OOOOOOO...",
-  "..OoOOOoO...",
+  "..UUUUUUU...",
+  ".UUUUUUIUU..",
+  ".RRRRRRRRR..",
+  ".SUUUUUUUS..",
+  "..UuUUUuU...",
 ];
 
 export const WORKER = {
-  run1: [...H, "..OOO.OOO...", "..OO...OO...", ".OO.....OO..", ".BB.....BB..", "............"],
-  run2: [...H, "...OOOOO....", "...OO.OO....", "...OO.OO....", "...BB.BBB...", "............"],
-  jump: [...H, "..OOO.OOO...", ".OO.....OO..", ".BB.....BB..", "............", "............"],
+  run1: [...H, "..UUU.UUU...", "..RR...RR...", ".UU.....UU..", ".TT.....TT..", "............"],
+  run2: [...H, "...UUUUU....", "...RR.RR....", "...UU.UU....", "...TT.TTT...", "............"],
+  jump: [...H, "..UUU.UUU...", ".RR.....RR..", ".TT.....TT..", "............", "............"],
   duck: [
-    "....YYYYY.......",
-    "...YYYYYYY......",
-    "..yyyyyyyyyy....",
-    "....SSSSKS......",
-    "..OOOOOOOOOOO...",
-    ".GRRRRRRRRRRRG..",
-    "..OOOOOOOOOOOO..",
-    "..OO.......OOO..",
-    "..BB.......BBB..",
+    "....HHHHH.......",
+    "...HHHHHHH......",
+    "..hhhhhhhhhh....",
+    "....SSAKAS......",
+    "..UUUUUUUIUUU...",
+    ".SRRRRRRRRRRRS..",
+    "..UUUUUUUUUUUU..",
+    "..RR.......RRR..",
+    "..TT.......TTT..",
     "................",
   ],
   hit: [
-    "...YYYYY....",
-    "..YYYYYYY...",
-    ".yyyyyyyyyy.",
-    "...SSSSSS...",
+    "...HHHHH....",
+    "..HHHHHHH...",
+    ".hhhhhhhhhh.",
+    "...ZSSSSS...",
     "...SKSSKS...",
     "...SSKKSS...",
-    ".GOOOOOOOG..",
-    ".GRRRRRRRG..",
-    "..OOOOOOO...",
-    "..OoOOOoO...",
-    "..OOO.OOO...",
-    "..OO...OO...",
-    "..OO...OO...",
-    "..BB...BB...",
+    ".SUUUUUUUS..",
+    ".URRRRRRRU..",
+    "..UUUUUUU...",
+    "..UuUUUuU...",
+    "..UUU.UUU...",
+    "..RR...RR...",
+    "..UU...UU...",
+    "..TT...TT...",
     "............",
     "............",
   ],
@@ -131,17 +135,29 @@ export const FLAME = [
   [".F...", "..FF.", ".FfF.", "FfFfF", ".fff."],
 ];
 
-/** Pre-dibuja un sprite en un canvas chico (se reutiliza en cada cuadro). */
-export function bake(rows: string[], palette = PALETTE, recolor?: Record<string, string>): HTMLCanvasElement {
+/**
+ * Pre-dibuja un sprite en un canvas chico (se reutiliza en cada cuadro).
+ * Con `outline`, agrega un contorno de 1px (el canvas queda 2px más grande y se dibuja desplazado -1,-1).
+ */
+export function bake(rows: string[], palette = PALETTE, recolor?: Record<string, string>, outline?: string): HTMLCanvasElement {
+  const o = outline ? 1 : 0;
+  const w = Math.max(...rows.map((r) => r.length));
   const c = document.createElement("canvas");
-  c.width = Math.max(...rows.map((r) => r.length));
-  c.height = rows.length;
+  c.width = w + o * 2;
+  c.height = rows.length + o * 2;
   const g = c.getContext("2d")!;
+  const filled = (x: number, y: number) => y >= 0 && y < rows.length && x >= 0 && x < rows[y].length && rows[y][x] !== ".";
+  if (outline) {
+    g.fillStyle = outline;
+    for (let y = -1; y <= rows.length; y++)
+      for (let x = -1; x <= w; x++)
+        if (!filled(x, y) && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1))) g.fillRect(x + o, y + o, 1, 1);
+  }
   rows.forEach((row, y) =>
     [...row].forEach((ch, x) => {
       if (ch === ".") return;
       g.fillStyle = recolor?.[ch] ?? palette[ch] ?? "#ff00ff";
-      g.fillRect(x, y, 1, 1);
+      g.fillRect(x + o, y + o, 1, 1);
     }),
   );
   return c;

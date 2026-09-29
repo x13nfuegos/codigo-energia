@@ -1,5 +1,6 @@
-import { SECTIONS_ADDED, SECTIONS_VERSION, DEFAULT_SECTIONS } from "./defaults";
+import { DEFAULT_SECTIONS, DEFAULT_SOURCES, SECTIONS_ADDED, SECTIONS_VERSION, SOURCES_ADDED, SOURCES_VERSION } from "./defaults";
 import { getStore } from "./store";
+import type { Source } from "./types";
 
 /**
  * Suma a portadas existentes los bloques nuevos (ej. Podcast), una sola vez.
@@ -20,4 +21,18 @@ export async function runSectionMigrations(): Promise<void> {
   }
   await store.upsert("sections", sections.map((x, i) => ({ ...x, order: i })));
   await store.saveSettings({ sections_version: SECTIONS_VERSION });
+}
+
+/** Suma a bases existentes las fuentes por defecto nuevas (ej. Bing News), una sola vez. Devuelve si cambió algo. */
+export async function runSourceMigrations(): Promise<boolean> {
+  const store = await getStore();
+  const settings = await store.getSettings();
+  if ((settings.sources_version ?? 1) >= SOURCES_VERSION) return false;
+  const all = await store.list("sources");
+  const newIds = SOURCES_ADDED.filter((a) => a.version > (settings.sources_version ?? 1)).flatMap((a) => a.ids);
+  // no revive fuentes que existan (aunque estén pausadas)
+  const missing = DEFAULT_SOURCES.filter((d) => newIds.includes(d.id) && !all.some((x) => x.id === d.id));
+  if (missing.length) await store.upsert("sources", missing as Source[]);
+  await store.saveSettings({ sources_version: SOURCES_VERSION });
+  return missing.length > 0;
 }

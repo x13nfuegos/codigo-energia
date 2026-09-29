@@ -391,17 +391,9 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   const settings = await store.getSettings();
   await store.saveSettings({ last_scrape_at: new Date().toISOString() });
   let all = await store.list("sources");
-  const { SOURCE_FIXES, SOURCES_VERSION, SOURCES_ADDED, DEFAULT_SOURCES } = await import("./defaults");
-  if ((settings.sources_version ?? 1) < SOURCES_VERSION) {
-    // fuentes nuevas incorporadas en versiones posteriores (no revive las que se borraron antes)
-    const newIds = SOURCES_ADDED.filter((a) => a.version > (settings.sources_version ?? 1)).flatMap((a) => a.ids);
-    const missing = DEFAULT_SOURCES.filter((d) => newIds.includes(d.id) && !all.some((x) => x.id === d.id));
-    if (missing.length) await store.upsert("sources", missing as Source[]);
-    await store.saveSettings({ sources_version: SOURCES_VERSION });
-    all = await store.list("sources");
-  }
-  const { runSectionMigrations } = await import("./migrations");
-  await runSectionMigrations();
+  const { SOURCE_FIXES } = await import("./defaults");
+  const { runSourceMigrations } = await import("./migrations");
+  if (await runSourceMigrations()) all = await store.list("sources");
   for (const f of SOURCE_FIXES) {
     const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
     if (s) await store.patch("sources", s.id, f.patch);

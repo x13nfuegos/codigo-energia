@@ -39,6 +39,7 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
   const [chars, setChars] = useState(0);
   const [seen, setSeen] = useState<Headline[]>([]);
   const [sound, setSound] = useState(false);
+  const [level, setLevel] = useState(1);
 
   // estado mutable del juego (fuera de React para no re-renderizar en cada cuadro)
   const g = useRef({
@@ -47,7 +48,9 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
     vy: 0,
     ducking: false,
     holdJump: false,
-    speed: 2.4,
+    speed: 1.5,
+    level: 1,
+    levelBanner: 0,
     dist: 0,
     bonus: 0,
     frame: 0,
@@ -82,7 +85,8 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
 
   const start = useCallback(() => {
     const s = g.current;
-    Object.assign(s, { phase: "running", y: GROUND - 16, vy: 0, ducking: false, speed: 2.4, dist: 0, bonus: 0, frame: 0, obstacles: [], floats: [], nextSpawn: 70, shake: 0 });
+    Object.assign(s, { phase: "running", y: GROUND - 16, vy: 0, ducking: false, speed: 1.5, level: 1, levelBanner: 0, dist: 0, bonus: 0, frame: 0, obstacles: [], floats: [], nextSpawn: 110, shake: 0 });
+    setLevel(1);
     setSeen([]);
     setHeadline(null);
     setScore(0);
@@ -158,12 +162,14 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
     const sil = light ? "#aab6c4" : "#27313f";
     const silNear = light ? "#8f9cad" : "#344255";
     const stars = light ? [] : Array.from({ length: 18 }, (_, i) => ({ x: (i * 47) % W, y: 4 + ((i * 13) % 30), tw: i % 3 }));
+    // contorno para que el mameluco azul se despegue del fondo
+    const edge = light ? "rgba(20,28,45,.55)" : "rgba(220,230,240,.38)";
     const sprites = {
-      run1: bake(WORKER.run1),
-      run2: bake(WORKER.run2),
-      jump: bake(WORKER.jump),
-      duck: bake(WORKER.duck),
-      hit: bake(WORKER.hit),
+      run1: bake(WORKER.run1, undefined, undefined, edge),
+      run2: bake(WORKER.run2, undefined, undefined, edge),
+      jump: bake(WORKER.jump, undefined, undefined, edge),
+      duck: bake(WORKER.duck, undefined, undefined, edge),
+      hit: bake(WORKER.hit, undefined, undefined, edge),
       barrel: bake(OBSTACLES.barrel),
       valve: bake(OBSTACLES.valve),
       cone: bake(OBSTACLES.cone),
@@ -185,22 +191,34 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
     const spawn = () => {
       const s = g.current;
       const r = Math.random();
-      const kinds: Kind[] = s.dist > 400 ? ["barrel", "valve", "cone", "drone"] : ["barrel", "valve", "cone"];
+      // cada nivel suma variedad: conos y barriles → válvulas → drones → barriles dobles y drones altos
+      const kinds: Kind[] = s.level >= 3 ? ["barrel", "valve", "cone", "drone"] : s.level >= 2 ? ["barrel", "valve", "cone"] : ["barrel", "cone"];
       const kind = kinds[Math.floor(r * kinds.length)];
       const spr = sprites[kind];
-      const y = kind === "drone" ? GROUND - 22 - (Math.random() < 0.35 ? 16 : 0) : GROUND - spr.height;
+      const y = kind === "drone" ? GROUND - 22 - (s.level >= 5 && Math.random() < 0.35 ? 16 : 0) : GROUND - spr.height;
       s.obstacles.push({ kind, x: W + 4, y, w: spr.width, h: spr.height, passed: false });
       // a veces un segundo obstáculo pegado (doble barril)
-      if (kind === "barrel" && s.dist > 250 && Math.random() < 0.25) s.obstacles.push({ kind, x: W + 4 + spr.width + 1, y, w: spr.width, h: spr.height, passed: false });
-      const gap = 70 + Math.random() * 90 - Math.min(40, s.speed * 6);
-      s.nextSpawn = Math.max(45, gap);
+      if (kind === "barrel" && s.level >= 4 && Math.random() < 0.25) s.obstacles.push({ kind, x: W + 4 + spr.width + 1, y, w: spr.width, h: spr.height, passed: false });
+      // al principio los obstáculos vienen bien espaciados; se van juntando con el nivel
+      s.nextSpawn = Math.max(50, 135 - s.level * 8 + Math.random() * 70);
     };
 
     const update = () => {
       const s = g.current;
       s.frame++;
       if (s.phase !== "running") return;
-      s.speed = Math.min(6.2, 2.4 + s.dist / 900);
+      // niveles: cada 250 de energía sube uno; la velocidad acompaña de a poco
+      const total = Math.floor(s.dist) + s.bonus;
+      const lvl = Math.min(10, 1 + Math.floor(total / 250));
+      if (lvl > s.level) {
+        s.level = lvl;
+        s.levelBanner = 90;
+        setLevel(lvl);
+        beep(660, 90, "triangle");
+        setTimeout(() => beep(990, 140, "triangle"), 110);
+      }
+      const target = 1.5 + (s.level - 1) * 0.4;
+      s.speed += Math.sign(target - s.speed) * Math.min(0.01, Math.abs(target - s.speed));
       s.dist += s.speed / 3;
       // física del salto (mantener apretado = salto más alto)
       const standing = GROUND - 16;
@@ -263,9 +281,6 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
       }
       s.floats = s.floats.filter((f) => f.t > 0);
       if (s.frame % 6 === 0) setScore(Math.floor(s.dist) + s.bonus);
-      // hitos cada 500 puntos
-      const total = Math.floor(s.dist) + s.bonus;
-      if (total > 0 && total % 500 < 1 && s.frame % 6 === 0) beep(1320, 120, "triangle");
     };
 
     const draw = () => {
@@ -349,8 +364,9 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
       else if (s.y < standing) spr = sprites.jump;
       else if (s.ducking) spr = sprites.duck;
       else if (s.phase === "running") spr = Math.floor(s.frame / 6) % 2 ? sprites.run1 : sprites.run2;
-      const py = spr === sprites.duck ? GROUND - spr.height : Math.round(s.y);
-      ctx.drawImage(spr, PX, py);
+      // los sprites del petrolero tienen 1px de contorno: se dibujan desplazados
+      const py = spr === sprites.duck ? GROUND - (spr.height - 2) : Math.round(s.y);
+      ctx.drawImage(spr, PX - 1, py - 1);
       // puntos flotantes
       ctx.fillStyle = C.accent;
       ctx.font = "bold 6px monospace";
@@ -359,6 +375,16 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
         ctx.fillText(f.text, Math.round(f.x), Math.round(f.y));
       }
       ctx.globalAlpha = 1;
+      // cartel de nivel
+      if (s.levelBanner > 0 && s.phase === "running") {
+        s.levelBanner--;
+        ctx.globalAlpha = Math.min(1, s.levelBanner / 25);
+        ctx.fillStyle = C.accent;
+        ctx.font = "bold 10px monospace";
+        const txt = `NIVEL ${s.level}`;
+        ctx.fillText(txt, Math.round(W / 2 - ctx.measureText(txt).width / 2), 30);
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     };
 
@@ -394,7 +420,8 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
           Petrolero<span className="hidden sm:inline"> Runner</span>
         </b>
         <span className="hidden text-dim sm:inline">— esquivá obstáculos, sumá energía</span>
-        <span className="ml-auto whitespace-nowrap tabular-nums text-ink">⚡ {pad(score)}</span>
+        <span className="ml-auto whitespace-nowrap text-accent">NV {level}</span>
+        <span className="whitespace-nowrap tabular-nums text-ink">⚡ {pad(score)}</span>
         <span className="whitespace-nowrap tabular-nums text-dim">HI {pad(Math.max(hi, score))}</span>
         <button onClick={() => setSound(!sound)} className="px-1 text-dim hover:text-accent" aria-label={sound ? "Silenciar" : "Activar sonido"}>
           {sound ? "🔊" : "🔈"}
