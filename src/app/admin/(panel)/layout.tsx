@@ -7,6 +7,7 @@ export const metadata = { title: "Back office", robots: { index: false } };
 
 const NAV = [
   ["/admin", "Tablero"],
+  ["/admin/metricas", "Métricas"],
   ["/admin/notas", "Notas"],
   ["/admin/fuentes", "Fuentes de scraping"],
   ["/admin/portada", "Diagramación de portada"],
@@ -14,6 +15,7 @@ const NAV = [
   ["/admin/mapa", "Mapa"],
   ["/admin/podcast", "Podcast"],
   ["/admin/resumen", "Resumen diario"],
+  ["/admin/instagram", "Instagram"],
   ["/admin/ajustes", "Ajustes"],
   ["/admin/diagnostico", "Diagnóstico"],
 ];

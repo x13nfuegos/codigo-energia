@@ -20,6 +20,7 @@ function authorized(req: NextRequest): boolean {
  *   /api/cron/indicators  actualizar cotizaciones
  *   /api/cron/daily       generar el resumen de ayer (texto, audio, video)
  *   /api/cron/videos      revisar videos pendientes de HeyGen
+ *   /api/cron/instagram   publicar en Instagram si toca (según horarios del back office)
  *   /api/cron/all         todo lo anterior
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ job: string }> }) {
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ job:
     if (job === "scrape" || job === "all") out.scrape = await runScrape();
     if (job === "daily" || job === "all") out.daily = await runDailyBrief(req.nextUrl.searchParams.get("force") === "1");
     if (job === "videos" || job === "all") out.videos = await checkPendingVideos();
+    if (job === "instagram" || job === "all") out.instagram = await (await import("@/lib/instagram")).maybePostInstagram();
     if (!Object.keys(out).length) return NextResponse.json({ error: `tarea desconocida: ${job}` }, { status: 404 });
     return NextResponse.json({ ok: true, ...out });
   } catch (e) {

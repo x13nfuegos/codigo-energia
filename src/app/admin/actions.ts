@@ -504,3 +504,33 @@ export async function refreshEpisodeMeta(id: string | null) {
   if (errors.length) back("/admin/podcast", `${ok} actualizados · ${errors.join(" | ")}`, true);
   back("/admin/podcast", ok === 1 ? "Datos leídos desde el video" : `${ok} episodios actualizados desde el video`);
 }
+
+// ---------- Instagram ----------
+
+export async function saveInstagram(fd: FormData) {
+  await requireAdmin();
+  const { DEFAULT_INSTAGRAM } = await import("@/lib/instagram");
+  const store = await getStore();
+  const ig = { ...DEFAULT_INSTAGRAM, ...(await store.getSettings()).instagram };
+  const hours = [...new Set(String(fd.get("hours") ?? "").split(/[^\d]+/).filter(Boolean).map(Number).filter((h) => h >= 0 && h <= 23))].sort((a, b) => a - b);
+  await store.saveSettings({
+    instagram: {
+      ...ig,
+      enabled: fd.get("enabled") === "on",
+      ai_caption: fd.get("ai_caption") === "on",
+      per_day: Math.min(25, Math.max(1, Number(fd.get("per_day")) || ig.per_day)),
+      hours: hours.length ? hours : ig.hours,
+      hashtags: String(fd.get("hashtags") ?? "").trim(),
+    },
+  });
+  back("/admin/instagram", "Configuración de Instagram guardada");
+}
+
+export async function publishToInstagram(articleId: string) {
+  await requireAdmin();
+  const a = await (await getStore()).get("articles", articleId);
+  if (!a) back("/admin/instagram", "La nota no existe", true);
+  const { publishArticle } = await import("@/lib/instagram");
+  const r = await publishArticle(a);
+  back("/admin/instagram", r.ok ? "Publicado en Instagram" : `No se pudo publicar: ${r.error}`, !r.ok);
+}

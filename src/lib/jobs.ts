@@ -80,6 +80,8 @@ export async function maybeRefresh() {
       if (last && !last.audio_url) await makeAudio(last);
     }
     await checkPendingVideos().catch(() => undefined);
+    const { maybePostInstagram } = await import("./instagram");
+    await maybePostInstagram().catch(() => undefined);
   } finally {
     running = false;
   }
