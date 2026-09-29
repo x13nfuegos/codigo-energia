@@ -121,7 +121,7 @@ export async function SectionBlock({ section, settings }: { section: Section; se
     case "podcast": {
       const podcast = settings.podcast;
       if (!podcast?.episodes.length) return null;
-      if (podcast.episodes.some((e) => !e.meta_ok)) after(async () => enrichPodcast(podcast, (p) => store.saveSettings({ podcast: p })));
+      after(async () => enrichPodcast(podcast, (p) => store.saveSettings({ podcast: p })));
       return (
         <section>
           <SectionTitle title={section.title || podcast.title} href="/podcast" />

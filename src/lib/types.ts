@@ -46,6 +46,8 @@ export interface PodcastEpisode {
   duration?: number | null;
   /** ya se consultaron título/miniatura al proveedor */
   meta_ok?: boolean;
+  /** último intento de leer los datos del video */
+  meta_tried_at?: string | null;
 }
 
 export interface Podcast {

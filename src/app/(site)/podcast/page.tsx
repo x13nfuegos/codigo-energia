@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const settings = await getSettings();
   const podcast = settings.podcast;
-  if (podcast?.episodes.some((e) => !e.meta_ok)) {
+  if (podcast?.episodes.length) {
     after(async () => enrichPodcast(podcast, async (p) => (await getStore()).saveSettings({ podcast: p })));
   }
   const episodes = podcast ? sortedEpisodes(podcast) : [];

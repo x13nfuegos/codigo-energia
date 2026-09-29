@@ -408,24 +408,29 @@ export async function saveEpisode(fd: FormData) {
     published_at: str("published_at") ? new Date(`${str("published_at")}T12:00:00-03:00`).toISOString() : prev?.published_at ?? new Date().toISOString(),
     meta_ok: prev?.url === url ? prev.meta_ok : false,
   };
-  // al cargar un link nuevo se traen título, miniatura y duración del video
-  if (!episode.meta_ok) {
+  // al cargar un link nuevo (o con título/descripción vacíos) se traen los datos del video
+  let metaErr = "";
+  if (!episode.meta_ok || !str("title") || !str("description")) {
     try {
       const meta = await fetchEpisodeMeta(url);
       episode = {
         ...episode,
-        ...meta,
+        thumbnail: meta.thumbnail ?? episode.thumbnail ?? null,
+        duration: meta.duration ?? episode.duration ?? null,
         title: str("title") || meta.title || episode.title,
-        description: str("description") || meta.description || episode.description,
+        description: str("description") || meta.description || null,
         published_at: str("published_at") ? episode.published_at : meta.published_at ?? episode.published_at,
         meta_ok: true,
+        meta_tried_at: new Date().toISOString(),
       };
-    } catch {
-      /* se reintenta al mostrar el podcast */
+    } catch (e) {
+      metaErr = errMsg(e);
+      episode = { ...episode, meta_tried_at: new Date().toISOString() };
     }
   }
   const episodes = prev ? podcast.episodes.map((e) => (e.id === id ? episode : e)) : [...podcast.episodes, episode];
   await store.saveSettings({ podcast: { ...podcast, episodes } });
+  if (metaErr) back("/admin/podcast", `Episodio guardado, pero no se pudieron leer los datos de Vimeo: ${metaErr}`, true);
   back("/admin/podcast", prev ? "Episodio actualizado" : "Episodio publicado: ya aparece en la playlist");
 }
 
@@ -473,4 +478,29 @@ export async function makeLatestAudio() {
   }
   const r = await (await import("@/lib/jobs")).makeAudio(last);
   back("/admin/diagnostico", r.ok ? `Audio del resumen ${last.date} generado` : `Audio: ${r.error}`, !r.ok);
+}
+
+/** Vuelve a leer título, descripción, miniatura y fecha desde Vimeo/YouTube (pisa lo cargado a mano). */
+export async function refreshEpisodeMeta(id: string | null) {
+  await requireAdmin();
+  const { fetchEpisodeMeta, applyMeta } = await import("@/lib/podcast");
+  const { store, podcast } = await podcastState();
+  const errors: string[] = [];
+  let ok = 0;
+  const episodes = await Promise.all(
+    podcast.episodes.map(async (e) => {
+      if (id && e.id !== id) return e;
+      try {
+        const next = applyMeta(e, await fetchEpisodeMeta(e.url), true);
+        ok++;
+        return next;
+      } catch (err) {
+        errors.push(`${e.title}: ${errMsg(err)}`);
+        return e;
+      }
+    }),
+  );
+  await store.saveSettings({ podcast: { ...podcast, episodes } });
+  if (errors.length) back("/admin/podcast", `${ok} actualizados · ${errors.join(" | ")}`, true);
+  back("/admin/podcast", ok === 1 ? "Datos leídos desde el video" : `${ok} episodios actualizados desde el video`);
 }

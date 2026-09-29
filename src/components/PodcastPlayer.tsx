@@ -72,7 +72,7 @@ export function PodcastPlayer({ episodes, initial, compact = false }: { episodes
             {current.duration ? ` · ${formatDuration(current.duration)}` : ""}
           </div>
           <h3 className={`mt-1 font-extrabold leading-tight ${compact ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"}`}>{current.title}</h3>
-          {current.description && !compact && <p className="mt-3 whitespace-pre-line text-muted">{current.description}</p>}
+          {current.description && <p className={`mt-3 whitespace-pre-line text-muted ${compact ? "line-clamp-3 text-sm" : ""}`}>{current.description}</p>}
         </div>
       </div>
 

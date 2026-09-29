@@ -5,7 +5,7 @@ import { toLocalInput } from "@/lib/admin-schema";
 import { DEFAULT_PODCAST, formatDuration, sortedEpisodes } from "@/lib/podcast";
 import { getStore } from "@/lib/store";
 import type { PodcastEpisode } from "@/lib/types";
-import { deleteEpisode, saveEpisode, savePodcastInfo } from "../../actions";
+import { deleteEpisode, refreshEpisodeMeta, saveEpisode, savePodcastInfo } from "../../actions";
 
 function EpisodeForm({ e, next }: { e?: PodcastEpisode; next: number }) {
   return (
@@ -25,12 +25,12 @@ function EpisodeForm({ e, next }: { e?: PodcastEpisode; next: number }) {
         <input name="published_at" type="date" defaultValue={e ? toLocalInput(e.published_at).slice(0, 10) : ""} className="input" />
       </label>
       <label className="field md:col-span-2">
-        Título (vacío = el del video)
+        Título (vacío = el de Vimeo)
         <input name="title" defaultValue={e?.title} className="input" />
       </label>
       <label className="field md:col-span-2">
-        Descripción
-        <textarea name="description" defaultValue={e?.description ?? ""} rows={3} className="input text-sm" />
+        Descripción (vacía = la de Vimeo)
+        <textarea name="description" defaultValue={e?.description ?? ""} rows={5} className="input text-sm" />
       </label>
       <div className="md:col-span-2">
         <Submit>{e ? "Guardar" : "Publicar episodio"}</Submit>
@@ -57,7 +57,14 @@ export default async function PodcastAdmin({ searchParams }: { searchParams: Fla
       </div>
 
       <div className="space-y-2">
-        <h2 className="font-bold">Episodios publicados ({episodes.length})</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-bold">Episodios publicados ({episodes.length})</h2>
+          {episodes.length > 0 && (
+            <form action={refreshEpisodeMeta.bind(null, null)} className="ml-auto">
+              <Submit className="btn">Releer todos desde Vimeo</Submit>
+            </form>
+          )}
+        </div>
         {episodes.map((e) => (
           <details key={e.id} className="card p-4">
             <summary className="flex cursor-pointer list-none items-center gap-3">
@@ -75,9 +82,14 @@ export default async function PodcastAdmin({ searchParams }: { searchParams: Fla
             </summary>
             <div className="mt-4 border-t border-line pt-4">
               <EpisodeForm e={e} next={next} />
-              <form action={deleteEpisode.bind(null, e.id)} className="mt-3">
-                <Submit className="btn btn-danger" confirm="¿Quitar este episodio de la playlist?">Eliminar</Submit>
-              </form>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <form action={refreshEpisodeMeta.bind(null, e.id)}>
+                  <Submit className="btn">Releer título y descripción desde Vimeo</Submit>
+                </form>
+                <form action={deleteEpisode.bind(null, e.id)}>
+                  <Submit className="btn btn-danger" confirm="¿Quitar este episodio de la playlist?">Eliminar</Submit>
+                </form>
+              </div>
             </div>
           </details>
         ))}
