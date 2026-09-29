@@ -393,7 +393,8 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   let all = await store.list("sources");
   const { SOURCE_FIXES } = await import("./defaults");
   const { runSourceMigrations } = await import("./migrations");
-  if (await runSourceMigrations()) all = await store.list("sources");
+  // una actualización fallida no puede frenar el scrapeo (queda registrada en Diagnóstico)
+  if (await runSourceMigrations().catch(() => false)) all = await store.list("sources");
   for (const f of SOURCE_FIXES) {
     const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
     if (s) await store.patch("sources", s.id, f.patch);

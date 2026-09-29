@@ -49,7 +49,12 @@ export async function runSourceMigrations(): Promise<boolean> {
   const newIds = SOURCES_ADDED.filter((a) => a.version > (settings.sources_version ?? 1)).flatMap((a) => a.ids);
   // no revive fuentes que existan (aunque estén pausadas)
   const missing = DEFAULT_SOURCES.filter((d) => newIds.includes(d.id) && !all.some((x) => x.id === d.id));
-  if (missing.length) await store.upsert("sources", missing as Source[]);
+  try {
+    if (missing.length) await store.upsert("sources", missing as Source[]);
+  } catch (e) {
+    migrationError = `fuentes: ${e instanceof Error ? e.message : String(e)}`;
+    throw e;
+  }
   await store.saveSettings({ sources_version: SOURCES_VERSION });
   return missing.length > 0;
 }

@@ -11,7 +11,7 @@ create table if not exists settings (
 create table if not exists sources (
   id text primary key,
   name text not null,
-  type text not null check (type in ('rss', 'google_news', 'html')),
+  type text not null check (type in ('rss', 'google_news', 'bing_news', 'html')),
   url text not null,
   category text not null default 'energia',
   enabled boolean not null default true,
@@ -155,3 +155,7 @@ alter table indicators add column if not exists source_url text;
 alter table indicators add column if not exists fallback_provider text;
 alter table indicators add column if not exists fallback_param text;
 alter table indicators add column if not exists metric text;
+
+-- Tipos de fuente agregados después (opcional en bases existentes: el sitio no lo necesita)
+alter table sources drop constraint if exists sources_type_check;
+alter table sources add constraint sources_type_check check (type in ('rss', 'google_news', 'bing_news', 'html'));

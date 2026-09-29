@@ -44,12 +44,17 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const gn = (q: string) => q;
 
-/** Bing News: mismas búsquedas, con link directo al medio y foto de cada noticia. */
+/**
+ * Bing News: mismas búsquedas, con link directo al medio y foto de cada noticia.
+ * Se guardan como RSS con la URL completa del feed: así funcionan también en bases creadas
+ * antes de que existiera el tipo "bing_news" (la columna type tiene un CHECK con los tipos viejos).
+ */
+const bingFeed = (q: string) => `https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&cc=AR&setlang=es`;
 const bing = (id: string, name: string, q: string, category: string): Omit<Source, "last_run_at" | "last_status" | "last_count"> => ({
   id,
   name: `Bing News · ${name}`,
-  type: "bing_news",
-  url: q,
+  type: "rss",
+  url: bingFeed(q),
   category,
   enabled: true,
   auto_publish: true,
@@ -73,9 +78,9 @@ export const SECTIONS_VERSION = 4;
 export const SECTIONS_ADDED = [{ version: 4, ids: ["podcast", "juego"] }];
 
 /** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
-// v3: se reaplica Bing (mismo motivo que SECTIONS_VERSION)
-export const SOURCES_VERSION = 3;
-export const SOURCES_ADDED = [{ version: 3, ids: BING_SOURCES.map((s) => s.id) }];
+// v4: Bing como RSS (la v3 fallaba por el CHECK de tipos en bases existentes)
+export const SOURCES_VERSION = 4;
+export const SOURCES_ADDED = [{ version: 4, ids: BING_SOURCES.map((s) => s.id) }];
 
 /**
  * Correcciones a fuentes que dejaron de funcionar: se aplican solas a bases existentes
