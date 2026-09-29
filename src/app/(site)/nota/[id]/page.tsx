@@ -45,10 +45,11 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const settings = await getSettings();
   const cat = categoryOf(settings, a.category);
   const source = a.source_name || hostname(a.url) || settings.site_name;
+  const photoCredit = (a.tags ?? []).find((t) => t.startsWith("credito:"))?.slice(8);
   const isExtract = (a.tags ?? []).includes(TAG_EXTRACT);
   const isAi = (a.tags ?? []).some((t) => t === TAG_AI || t === "resumen:ia");
   after(() => store.incrementViews(a.id));
-  const related = (await store.queryArticles({ category: a.category, photoOk: true, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
+  const related = (await store.queryArticles({ category: a.category, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
 
   return (
     <div className="grid gap-12 lg:grid-cols-[1fr_320px]">
@@ -66,6 +67,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
           </Link>
         )}
         <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} fallback={`/cover/${a.id}`} className="mt-6 aspect-[16/9] w-full rounded-xl" priority />
+        {photoCredit && <p className="mt-2 text-xs text-dim">Foto ilustrativa: {photoCredit}</p>}
         <section className="mt-8">
           <h2 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.15em] text-muted">
             <span className="h-4 w-1.5 rounded-sm bg-accent" />

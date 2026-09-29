@@ -12,7 +12,7 @@ export default async function Home() {
   const [settings, sections] = await Promise.all([getSettings(), (await getStore()).list("sections")]);
   const list = sections.filter((s) => s.enabled).sort((a, b) => a.order - b.order);
   const store = await getStore();
-  const [total, latest, briefs] = await Promise.all([store.countArticles({}), store.queryArticles({ limit: 8, photoOk: true }), store.list("briefs")]);
+  const [total, latest, briefs] = await Promise.all([store.countArticles({}), store.queryArticles({ limit: 8 }), store.list("briefs")]);
   const [brief] = briefs.sort((a, b) => b.date.localeCompare(a.date));
   return (
     <div className="space-y-12">

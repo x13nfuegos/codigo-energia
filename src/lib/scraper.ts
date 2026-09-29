@@ -481,12 +481,13 @@ export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<numbe
   const store = await getStore();
   const deadline = Date.now() + budgetMs;
   const pending = (await store.queryArticles({ status: "all", limit: 200 }))
-    .filter((a) => !a.image && (!a.enriched || !(a.tags ?? []).includes(TAG_PHOTO_SEARCHED)))
+    .filter((a) => !a.image && !(a.tags ?? []).includes(TAG_TOPIC_TRIED))
     .slice(0, limit);
   let fixed = 0;
   await mapLimit(pending, 4, async (a) => {
     if (Date.now() > deadline) return;
     const it: RawItem = { title: a.title, url: a.url, summary: a.summary, image: null, date: a.published_at };
+    const searched = (a.tags ?? []).includes(TAG_PHOTO_SEARCHED);
     if (!a.enriched) {
       try {
         await enrichItem(it);
@@ -494,7 +495,7 @@ export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<numbe
         /* se sigue con la búsqueda por titular */
       }
     }
-    if (!it.image) {
+    if (!it.image && !searched) {
       try {
         const found = await findImageByTitle(a.title);
         if (found) {
@@ -508,19 +509,35 @@ export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<numbe
     // la foto encontrada se prueba en el momento: si carga, la nota ya puede aparecer en la portada
     const works = it.image ? await photoWorks(it.image).catch(() => false) : false;
     if (!works) it.image = null;
-    if (it.image) fixed++;
+    // sin foto propia: foto temática con licencia libre (pozo, parque eólico, mina…)
+    const stock = it.image ? null : await topicPhoto(a);
+    if (it.image || stock) fixed++;
     await store.patch("articles", a.id, {
-      image: it.image ?? null,
+      image: it.image ?? stock?.url ?? null,
       summary: a.summary || it.summary,
       url: normalizeUrl(it.url),
       enriched: true,
-      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_SEARCHED && t !== TAG_PHOTO_OK), TAG_PHOTO_SEARCHED, ...(works ? [TAG_PHOTO_OK] : [])],
+      tags: [
+        ...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_SEARCHED && t !== TAG_PHOTO_OK && !t.startsWith("credito:") && t !== TAG_PHOTO_TOPIC && t !== TAG_TOPIC_TRIED),
+        TAG_PHOTO_SEARCHED,
+        ...(!it.image && !stock ? [TAG_TOPIC_TRIED] : []),
+        ...(works || stock ? [TAG_PHOTO_OK] : []),
+        ...(stock ? [TAG_PHOTO_TOPIC, `credito:${stock.credit}`] : []),
+      ],
     });
   });
   return fixed;
 }
 
 const TAG_PHOTO_OK = "foto:ok";
+const TAG_PHOTO_TOPIC = "foto:tema";
+/** ya se buscó foto propia y temática sin éxito: queda la portada generada */
+const TAG_TOPIC_TRIED = "foto:sin-tema";
+
+async function topicPhoto(a: Article) {
+  const { findTopicPhoto } = await import("./stock");
+  return findTopicPhoto(a, photoWorks).catch(() => null);
+}
 
 /** true si la foto se puede descargar y tiene tamaño de foto (no un logo ni un píxel de seguimiento). */
 async function photoWorks(url: string): Promise<boolean> {
@@ -555,12 +572,29 @@ export async function verifyPhotos(limit = 30, budgetMs = 45000): Promise<{ chec
       image = null;
       const found = await findImageByTitle(a.title).catch(() => null);
       if (found && found.image !== a.image && (await photoWorks(found.image).catch(() => false))) image = found.image;
+      let credit: string | null = null;
+      if (!image) {
+        const stock = await topicPhoto(a);
+        if (stock) {
+          image = stock.url;
+          credit = stock.credit;
+        }
+      }
       if (image) replaced++;
       else removed++;
+      await store.patch("articles", a.id, {
+        image,
+        tags: [
+          ...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_OK && t !== TAG_PHOTO_TOPIC && !t.startsWith("credito:")),
+          ...(image ? [TAG_PHOTO_OK] : []),
+          ...(credit ? [TAG_PHOTO_TOPIC, `credito:${credit}`] : []),
+        ],
+      });
+      return;
     }
     await store.patch("articles", a.id, {
       image,
-      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_OK), ...(image ? [TAG_PHOTO_OK] : [])],
+      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_OK), TAG_PHOTO_OK],
     });
   });
   return { checked, replaced, removed };
