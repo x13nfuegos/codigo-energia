@@ -1,5 +1,6 @@
 import { bingNewsUrl, googleNewsUrl, fetchText } from "./scraper";
-import { DEFAULT_GEMINI, cheapProvider } from "./llm";
+import { DEFAULT_GEMINI, cheapJson, cheapProvider } from "./llm";
+import { migrationError } from "./migrations";
 import { getStore, storeWarning } from "./store";
 import { supabaseEnv } from "./store/env";
 
@@ -30,7 +31,9 @@ function keyKind(key: string): string {
 
 export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<string, string> }> {
   const env = supabaseEnv();
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA;
   const envInfo = {
+    "Versión publicada": sha ? `${sha.slice(0, 7)} · ${process.env.VERCEL_GIT_COMMIT_MESSAGE?.split("\n")[0]?.slice(0, 70) ?? ""}` : "local",
     "Base de datos": env.ok ? "Supabase" : "archivo temporal (sin Supabase)",
     "URL de Supabase": env.url ? env.url.replace(/^https?:\/\//, "") : "falta",
     "Clave de Supabase": keyKind(env.key),
@@ -53,6 +56,23 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       await store.saveSettings({ tagline: s.tagline });
       return "escritura OK";
     }),
+    timed("Portada: bloques y actualizaciones", async () => {
+      const [secs, settings] = await Promise.all([store.list("sections"), store.getSettings()]);
+      const types = secs.filter((x) => x.enabled).sort((a, b) => a.order - b.order).map((x) => x.type);
+      const miss = ["podcast", "game"].filter((t) => !types.includes(t as never));
+      const detail = `${types.join(" · ")} | versiones: portada ${settings.sections_version ?? 1}, fuentes ${settings.sources_version ?? 1}${migrationError ? ` | ERROR: ${migrationError}` : ""}`;
+      if (miss.length) throw new Error(`faltan ${miss.join(" y ")} → tocá "Aplicar actualizaciones". ${detail}`);
+      return detail;
+    }),
+    timed(
+      "IA (prueba real)",
+      async () => {
+        if (!cheapProvider()) return "sin IA configurada";
+        const r = await cheapJson<{ ok: boolean }>("Respondé solo JSON.", 'Devolvé {"ok": true}', 50);
+        return r.ok ? `${cheapProvider()} responde OK` : "respuesta inesperada";
+      },
+      30000,
+    ),
     timed("Yahoo Finance (WTI)", async () => {
       const j = JSON.parse(await fetchText("https://query1.finance.yahoo.com/v8/finance/chart/CL%3DF?range=5d&interval=1d", 15000));
       return `WTI ${j.chart?.result?.[0]?.meta?.regularMarketPrice ?? "sin dato"}`;

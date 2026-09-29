@@ -2,6 +2,23 @@ import { DEFAULT_SECTIONS, DEFAULT_SOURCES, SECTIONS_ADDED, SECTIONS_VERSION, SO
 import { getStore } from "./store";
 import type { Source } from "./types";
 
+/** Último error de las migraciones (se muestra en Diagnóstico). */
+export let migrationError: string | null = null;
+
+/** Corre todas las migraciones en serie y registra el error si lo hay. */
+export async function runAllMigrations(): Promise<{ sections: boolean; sources: boolean }> {
+  try {
+    await runSectionMigrations();
+    const sources = await runSourceMigrations();
+    migrationError = null;
+    return { sections: true, sources };
+  } catch (e) {
+    migrationError = e instanceof Error ? e.message : String(e);
+    console.error("migraciones", migrationError);
+    throw e;
+  }
+}
+
 /**
  * Suma a portadas existentes los bloques nuevos (ej. Podcast), una sola vez.
  * Es rápida: se llama al mostrar la portada y en cada scrapeo.

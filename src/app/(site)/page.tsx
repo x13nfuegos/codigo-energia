@@ -1,14 +1,13 @@
 import { Newsroom } from "@/components/Newsroom";
 import { SectionBlock } from "@/components/Sections";
 import { timeAgo } from "@/lib/format";
-import { runSectionMigrations, runSourceMigrations } from "@/lib/migrations";
+import { runAllMigrations } from "@/lib/migrations";
 import { getStore } from "@/lib/store";
 import { getSettings } from "@/lib/site";
 
 export default async function Home() {
-  // en serie: las dos guardan la configuración
-  await runSectionMigrations().catch(() => undefined);
-  await runSourceMigrations().catch(() => undefined);
+  // en serie (las dos guardan la configuración); si fallan, el error queda en Diagnóstico
+  await runAllMigrations().catch(() => undefined);
   const [settings, sections] = await Promise.all([getSettings(), (await getStore()).list("sections")]);
   const list = sections.filter((s) => s.enabled).sort((a, b) => a.order - b.order);
   const store = await getStore();

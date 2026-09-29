@@ -439,3 +439,16 @@ export async function findMissingPhotos() {
   const fixed = await enrichMissing(60, 45000);
   back("/admin/diagnostico", `Búsqueda de fotos: ${fixed} notas ahora tienen foto`);
 }
+
+export async function applyUpdates() {
+  await requireAdmin();
+  try {
+    const { runAllMigrations } = await import("@/lib/migrations");
+    const r = await runAllMigrations();
+    revalidatePath("/", "layout");
+    back("/admin/diagnostico", `Actualizaciones aplicadas${r.sources ? " (se sumaron fuentes nuevas)" : ""}`);
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e; // redirect de Next
+    back("/admin/diagnostico", `No se pudieron aplicar: ${errMsg(e)}`, true);
+  }
+}
