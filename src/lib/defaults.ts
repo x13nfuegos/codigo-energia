@@ -74,7 +74,7 @@ export const BING_SOURCES = [
 
 /** Bloques de portada agregados en versiones posteriores (se suman una vez a bases existentes). */
 // v4: se reaplica podcast + juego (una versión anterior guardaba la versión por defecto sin haberlos sumado)
-export const SECTIONS_VERSION = 4;
+export const SECTIONS_VERSION = 5;
 export const SECTIONS_ADDED = [{ version: 4, ids: ["podcast", "juego"] }];
 
 /** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
@@ -273,18 +273,21 @@ const sec = (s: Omit<Section, "order" | "enabled" | "category"> & Partial<Sectio
 
 export const DEFAULT_SECTIONS: Section[] = [
   sec({ id: "hero", type: "hero", title: "Principal", limit: 1 }),
+  sec({ id: "podcast", type: "podcast", title: "Código Energía Podcast", limit: 4 }),
   sec({ id: "counters", type: "counters", title: "Contadores", limit: 3 }),
   sec({ id: "ultimas", type: "list", title: "Últimas noticias", limit: 6, offset: 1 }),
   sec({ id: "mapa", type: "map", title: "El mapa de la energía", limit: 0 }),
-  sec({ id: "podcast", type: "podcast", title: "Código Energía Podcast", limit: 4 }),
-  sec({ id: "juego", type: "game", title: "Petrolero Runner", limit: 0 }),
-  sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
   sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
-  sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 3 }),
+  sec({ id: "juego", type: "game", title: "Petrolero Runner", limit: 0 }),
   sec({ id: "mineria", type: "grid", title: "Minería", category: "mineria", limit: 4, columns: 2 }),
+  sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 3 }),
   sec({ id: "energia", type: "grid", title: "Energía", category: "energia", limit: 6, columns: 3 }),
+  sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
   sec({ id: "mercados", type: "indicators", title: "Mercados", limit: 0 }),
 ];
+
+/** Orden de portada recomendado (se aplica una vez a portadas existentes con la versión 5). */
+export const LAYOUT_V5 = DEFAULT_SECTIONS.map((s) => s.id);
 
 const pt = (p: Omit<MapPoint, "enabled">): MapPoint => ({ enabled: true, ...p });
 const APROX = "Ubicación aproximada.";

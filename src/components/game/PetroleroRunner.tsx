@@ -4,6 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FLAME, OBSTACLES, PUMPJACK_BASE, WORKER, bake } from "./sprites";
 
+/** Nivel según la energía juntada: el primer salto pide 600 y cada nivel siguiente 200 más. */
+function levelFor(total: number): number {
+  let lvl = 1;
+  let need = 600;
+  let acc = need;
+  while (total >= acc) {
+    lvl++;
+    need += 200;
+    acc += need;
+  }
+  return lvl;
+}
+
 export type Headline = { id: string; title: string; tag: string };
 
 // Resolución lógica (pixel art): el canvas se escala con image-rendering: pixelated
@@ -200,16 +213,16 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
       // a veces un segundo obstáculo pegado (doble barril)
       if (kind === "barrel" && s.level >= 4 && Math.random() < 0.25) s.obstacles.push({ kind, x: W + 4 + spr.width + 1, y, w: spr.width, h: spr.height, passed: false });
       // al principio los obstáculos vienen bien espaciados; se van juntando con el nivel
-      s.nextSpawn = Math.max(50, 135 - s.level * 8 + Math.random() * 70);
+      s.nextSpawn = Math.max(70, 140 - s.level * 5 + Math.random() * 70);
     };
 
     const update = () => {
       const s = g.current;
       s.frame++;
       if (s.phase !== "running") return;
-      // niveles: cada 250 de energía sube uno; la velocidad acompaña de a poco
+      // niveles progresivos: cada nivel pide más energía que el anterior (600, 1400, 2400, 3600…)
       const total = Math.floor(s.dist) + s.bonus;
-      const lvl = Math.min(10, 1 + Math.floor(total / 250));
+      const lvl = Math.min(10, levelFor(total));
       if (lvl > s.level) {
         s.level = lvl;
         s.levelBanner = 90;
@@ -217,8 +230,8 @@ export function PetroleroRunner({ headlines, compact = false }: { headlines: Hea
         beep(660, 90, "triangle");
         setTimeout(() => beep(990, 140, "triangle"), 110);
       }
-      const target = 1.5 + (s.level - 1) * 0.4;
-      s.speed += Math.sign(target - s.speed) * Math.min(0.01, Math.abs(target - s.speed));
+      const target = 1.5 + (s.level - 1) * 0.18;
+      s.speed += Math.sign(target - s.speed) * Math.min(0.003, Math.abs(target - s.speed));
       s.dist += s.speed / 3;
       // física del salto (mantener apretado = salto más alto)
       const standing = GROUND - 16;

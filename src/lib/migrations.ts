@@ -1,4 +1,4 @@
-import { DEFAULT_SECTIONS, DEFAULT_SOURCES, SECTIONS_ADDED, SECTIONS_VERSION, SOURCES_ADDED, SOURCES_VERSION } from "./defaults";
+import { DEFAULT_SECTIONS, DEFAULT_SOURCES, LAYOUT_V5, SECTIONS_ADDED, SECTIONS_VERSION, SOURCES_ADDED, SOURCES_VERSION } from "./defaults";
 import { getStore } from "./store";
 import type { Source } from "./types";
 
@@ -35,6 +35,15 @@ export async function runSectionMigrations(): Promise<void> {
     // podcast: después del mapa; juego: después del podcast (o cerca del principio)
     const anchor = sections.findIndex((x) => x.type === (def.type === "game" ? "podcast" : "map"));
     sections.splice(anchor >= 0 ? anchor + 1 : Math.min(3, sections.length), 0, def);
+  }
+  // v5: nuevo orden de portada (principal + más leído, podcast, contadores, últimas, mapa, oil & gas, juego…).
+  // Los bloques propios que no están en la lista quedan al final, en su orden.
+  if ((settings.sections_version ?? 1) < 5) {
+    const rank = (id: string) => {
+      const i = LAYOUT_V5.indexOf(id);
+      return i < 0 ? LAYOUT_V5.length : i;
+    };
+    sections.sort((a, b) => rank(a.id) - rank(b.id) || a.order - b.order);
   }
   await store.upsert("sections", sections.map((x, i) => ({ ...x, order: i })));
   await store.saveSettings({ sections_version: SECTIONS_VERSION });
