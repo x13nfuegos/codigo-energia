@@ -1,5 +1,5 @@
 /* Service worker de Código Energía: sitio instalable y lectura sin conexión. */
-const VERSION = "ce-v1";
+const VERSION = "ce-v2";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const IMAGES = `${VERSION}-img`;
@@ -41,7 +41,7 @@ self.addEventListener("fetch", (e) => {
   }
 
   // imágenes de notas (proxy): stale-while-revalidate
-  if (url.pathname.startsWith("/api/img")) {
+  if (url.pathname.startsWith("/api/img") || url.pathname.startsWith("/cover/")) {
     e.respondWith(
       caches.open(IMAGES).then(async (c) => {
         const hit = await c.match(req);

@@ -10,7 +10,7 @@ export function HeroCard({ a, cat }: P) {
   return (
     <article>
       <Link href={`/nota/${a.id}`} className="block">
-        <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} className="aspect-[16/9] w-full rounded-xl" priority />
+        <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} fallback={`/cover/${a.id}`} className="aspect-[16/9] w-full rounded-xl" priority />
       </Link>
       <div className="mt-5">
         <CategoryBadge cat={cat} />
@@ -31,7 +31,7 @@ export function ListItem({ a, cat }: P) {
   return (
     <article className="flex gap-4 border-b border-line py-5 last:border-0">
       <Link href={`/nota/${a.id}`} className="shrink-0">
-        <Img src={a.image} alt="" cat={cat} label={a.source_name} className="h-24 w-24 rounded-lg md:h-28 md:w-40" />
+        <Img src={a.image} alt="" cat={cat} label={a.source_name} fallback={`/cover/${a.id}`} className="h-24 w-24 rounded-lg md:h-28 md:w-40" />
       </Link>
       <div className="min-w-0">
         <Link href={`/nota/${a.id}`}>
@@ -50,7 +50,7 @@ export function GridCard({ a, cat }: P) {
   return (
     <article>
       <Link href={`/nota/${a.id}`} className="block">
-        <Img src={a.image} alt="" cat={cat} label={a.source_name} className="aspect-[4/3] w-full rounded-lg" />
+        <Img src={a.image} alt="" cat={cat} label={a.source_name} fallback={`/cover/${a.id}`} className="aspect-[4/3] w-full rounded-lg" />
       </Link>
       <div className="mt-3">
         <CategoryBadge cat={cat} />

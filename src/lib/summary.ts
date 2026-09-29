@@ -5,10 +5,20 @@ import { cheapProvider } from "./llm";
 import { getStore } from "./store";
 import type { Article } from "./types";
 
-export const TAG_AI = "resumen:ia";
+/** v2: resumen largo (4 a 6 párrafos). Los de la versión anterior ("resumen:ia") se regeneran. */
+export const TAG_AI = "resumen:ia2";
 export const TAG_EXTRACT = "resumen:extracto";
 
 const inFlight = new Set<string>();
+
+/** Falta resumen, o el que hay es un extracto / resumen corto viejo y ya hay IA configurada. Los textos cargados a mano no se tocan. */
+export function needsSummary(a: Article): boolean {
+  if (!a.body) return true;
+  const tags = a.tags ?? [];
+  if (tags.includes(TAG_AI)) return false;
+  const auto = tags.some((t) => t.startsWith("resumen:"));
+  return auto && !!cheapProvider();
+}
 
 /** Primeras oraciones de la nota original, hasta ~90 palabras (cita breve con atribución). */
 function excerpt(text: string, maxWords = 90): string {
@@ -24,7 +34,8 @@ function excerpt(text: string, maxWords = 90): string {
  * sin clave, se guarda un extracto breve de la nota original. Se ejecuta una sola vez por nota.
  */
 export async function ensureArticleSummary(a: Article): Promise<void> {
-  if (a.body || inFlight.has(a.id)) return;
+  if (inFlight.has(a.id)) return;
+  if (a.body && !needsSummary(a)) return;
   inFlight.add(a.id);
   try {
     const store = await getStore();

@@ -35,13 +35,16 @@ function groupNews(news: NewsPin[]): Group[] {
 /** Pin de noticias: color de la sección de la nota más reciente, tamaño según cantidad. */
 function pinIcon(g: Group, selected: boolean) {
   const count = g.items.length;
-  const size = Math.round(30 + Math.min(count, 10) * 2.4);
+  // crece con la raíz de la cantidad: 1 nota ≈ 28px, 12 notas ≈ 50px
+  const size = Math.round(22 + Math.sqrt(count) * 8);
   const fresh = Date.now() - new Date(g.items[0].published_at).getTime() < 86400000;
   return L.divIcon({
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
-    html: `<div class="map-pin${fresh ? " map-pin--fresh" : ""}${selected ? " map-pin--on" : ""}" style="--pin:${g.items[0].catColor};width:${size}px;height:${size}px"><span>${count}</span></div>`,
+    html:
+      `<div class="map-pin${fresh ? " map-pin--fresh" : ""}${selected ? " map-pin--on" : ""}" style="--pin:${g.items[0].catColor};--s:${size}px">` +
+      `<span class="map-pin__core">${count}</span></div>`,
   });
 }
 
@@ -76,8 +79,9 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
   const [showNews, setShowNews] = useState(true);
   const [cats, setCats] = useState<Set<string>>(new Set());
   const types = useMemo(() => [...new Set(points.map((p) => p.type))], [points]);
-  const [active, setActive] = useState<Set<MapPointType>>(new Set(types));
-  const [wms, setWms] = useState<Set<string>>(new Set(layers.filter((l) => l.enabled && l.visible).map((l) => l.id)));
+  // el mapa abre solo con noticias: infraestructura y capas oficiales se prenden desde "Capas"
+  const [active, setActive] = useState<Set<MapPointType>>(new Set());
+  const [wms, setWms] = useState<Set<string>>(new Set());
   const [panel, setPanel] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [full, setFull] = useState(false);
@@ -199,7 +203,7 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
         </div>
       </div>
 
-      <div className={`grid min-h-0 gap-3 ${full ? "flex-1 lg:grid-cols-[1fr_380px]" : showList ? "lg:grid-cols-[1fr_360px]" : ""}`}>
+      <div className={`grid min-h-0 gap-3 ${full ? "flex-1 lg:grid-cols-[1fr_380px]" : "lg:grid-cols-[1fr_360px]"}`}>
         <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-line" style={{ height: mapHeight }}>
           <MapContainer ref={setMap} bounds={ARG} boundsOptions={{ padding: [0, 0] }} scrollWheelZoom={false} zoomControl={false} style={{ height: "100%", width: "100%" }}>
             <TileLayer {...tiles} />
@@ -260,14 +264,11 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
               <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[0.55rem] font-bold text-accent-ink">3</span>
               noticias en ese lugar · tocá para verlas
             </div>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="ml-1 h-2 w-2 rounded-full bg-muted" />
-              infraestructura · pasá el mouse
-            </div>
+
           </div>
         </div>
 
-        {(showList || full || sel) && (
+        {(showList || full || sel || visibleNews.length > 0) && (
           <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-surface" style={{ maxHeight: full ? "100%" : `min(${height}px, 70vh)` }}>
             <div className="flex items-center gap-2 border-b border-line px-4 py-3 font-mono text-xs uppercase tracking-[0.15em] text-muted">
               {sel ? (
@@ -287,10 +288,19 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
               {!list.length && <p className="p-4 text-sm text-dim">No hay noticias ubicadas en este período.</p>}
               {list.map((n) => (
                 <div key={n.id} className={`flex gap-3 border-b border-line px-4 py-3 last:border-0 ${n.id === focus ? "bg-surface-2" : ""}`}>
-                  {n.image && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={n.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = "none")} className="h-14 w-14 shrink-0 rounded-md bg-surface-2 object-cover" />
-                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={n.image || `/cover/${n.id}`}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.src.includes("/cover/")) img.src = `/cover/${n.id}`;
+                      else img.style.display = "none";
+                    }}
+                    className="h-14 w-20 shrink-0 rounded-md bg-surface-2 object-cover"
+                  />
                   <div className="min-w-0">
                     <button onClick={() => setSelected(keyOf(n.lat, n.lng))} className="flex max-w-full items-center gap-1.5 text-left text-[0.7rem] text-dim hover:text-accent">
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: n.catColor }} />

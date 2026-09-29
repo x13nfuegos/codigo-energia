@@ -119,19 +119,35 @@ body {
 
 /* noticias en el mapa */
 .map-pin {
-  display: flex; align-items: center; justify-content: center; border-radius: 9999px;
-  background: var(--pin); color: #fff; font: 700 12px/1 var(--font-mono);
-  border: 2px solid var(--color-bg); cursor: pointer; transition: transform .15s;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pin) 30%, transparent), 0 4px 14px rgb(0 0 0 / .35);
+  position: relative; width: var(--s); height: var(--s); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .18s ease;
 }
-.map-pin span { text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
-.map-pin:hover { transform: scale(1.12); }
-.map-pin--on { transform: scale(1.18); border-color: var(--color-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 45%, transparent); }
-.map-pin--fresh { animation: pin-pulse 2.2s ease-out infinite; }
-@keyframes pin-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pin) 65%, transparent), 0 4px 14px rgb(0 0 0 / .35); }
-  100% { box-shadow: 0 0 0 18px transparent, 0 4px 14px rgb(0 0 0 / .35); }
+/* halo suave del color de la sección */
+.map-pin::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--pin) 45%, transparent) 0%, transparent 70%);
 }
+.map-pin__core {
+  position: relative; width: 100%; height: 100%; border-radius: 9999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--pin) 55%, #fff) 0%, var(--pin) 45%, color-mix(in srgb, var(--pin) 70%, #000) 100%);
+  border: 2px solid rgb(255 255 255 / .9);
+  box-shadow: 0 6px 16px rgb(0 0 0 / .45), inset 0 -2px 6px rgb(0 0 0 / .25);
+  color: #fff; font: 700 calc(var(--s) * .36)/1 var(--font-mono); text-shadow: 0 1px 2px rgb(0 0 0 / .55);
+}
+.map-pin:hover { transform: translateY(-2px) scale(1.08); z-index: 10; }
+.map-pin--on { transform: scale(1.15); }
+.map-pin--on .map-pin__core { border-color: var(--color-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 40%, transparent), 0 8px 20px rgb(0 0 0 / .5); }
+.map-pin--fresh::after {
+  content: ""; position: absolute; inset: 0; border-radius: 9999px; border: 2px solid var(--pin);
+  animation: pin-ring 2.4s ease-out infinite;
+}
+@keyframes pin-ring {
+  0% { transform: scale(1); opacity: .8; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .map-pin--fresh::after { animation: none; } }
 .leaflet-tooltip { background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .3); font: 12px/1.4 var(--font-sans); }
 .leaflet-tooltip-top:before { border-top-color: var(--color-line); }
 .leaflet-control-attribution { background: color-mix(in srgb, var(--color-surface) 80%, transparent) !important; color: var(--color-dim) !important; font-size: 10px !important; }

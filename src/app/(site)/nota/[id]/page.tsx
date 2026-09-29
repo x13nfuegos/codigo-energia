@@ -9,7 +9,7 @@ import { dateTime, hostname } from "@/lib/format";
 import { getStore } from "@/lib/store";
 import { categoryOf, getSettings } from "@/lib/site";
 import { cheapProvider } from "@/lib/llm";
-import { TAG_AI, TAG_EXTRACT, ensureArticleSummary } from "@/lib/summary";
+import { TAG_AI, TAG_EXTRACT, ensureArticleSummary, needsSummary } from "@/lib/summary";
 
 async function load(id: string) {
   const a = await (await getStore()).get("articles", id);
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: a.title,
     description: a.summary,
-    openGraph: { title: a.title, description: a.summary, images: a.image ? [a.image] : undefined, type: "article" },
+    openGraph: { title: a.title, description: a.summary, images: [a.image || `/cover/${a.id}`], type: "article" },
   };
 }
 
@@ -30,7 +30,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   let a = await load(id);
   if (!a) notFound();
-  if (!a.body) {
+  if (needsSummary(a)) {
     if (cheapProvider()) {
       // el resumen con IA tarda unos segundos: se genera en segundo plano y aparece en la próxima visita
       const pending = a;
@@ -46,7 +46,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const cat = categoryOf(settings, a.category);
   const source = a.source_name || hostname(a.url) || settings.site_name;
   const isExtract = (a.tags ?? []).includes(TAG_EXTRACT);
-  const isAi = (a.tags ?? []).includes(TAG_AI);
+  const isAi = (a.tags ?? []).some((t) => t === TAG_AI || t === "resumen:ia");
   after(() => store.incrementViews(a.id));
   const related = (await store.queryArticles({ category: a.category, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
 
@@ -65,7 +65,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
             📍 {a.geo.place} · Ver en el mapa
           </Link>
         )}
-        {a.image && <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} className="mt-6 aspect-[16/9] w-full rounded-xl" priority />}
+        <Img src={a.image} alt={a.title} cat={cat} label={a.source_name} fallback={`/cover/${a.id}`} className="mt-6 aspect-[16/9] w-full rounded-xl" priority />
         <section className="mt-8">
           <h2 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.15em] text-muted">
             <span className="h-4 w-1.5 rounded-sm bg-accent" />

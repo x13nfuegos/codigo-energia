@@ -16,6 +16,7 @@ export function Img({
   className = "",
   priority = false,
   label,
+  fallback,
 }: {
   src?: string | null;
   alt: string;
@@ -24,8 +25,10 @@ export function Img({
   priority?: boolean;
   /** medio de origen, se muestra en el placeholder cuando no hay foto */
   label?: string | null;
+  /** imagen generada a usar si la nota no tiene foto o la foto no carga (ej. /cover/{id}) */
+  fallback?: string | null;
 }) {
-  const direct = src?.startsWith("http://") ? proxied(src) : src;
+  const direct = (src?.startsWith("http://") ? proxied(src) : src) || fallback || null;
   const [current, setCurrent] = useState(direct);
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
@@ -36,7 +39,8 @@ export function Img({
   }, [direct]);
 
   const onError = () => {
-    if (src && current && !current.startsWith("/api/img")) setCurrent(proxied(src));
+    if (src && current && !current.startsWith("/api/img") && current !== fallback) setCurrent(proxied(src));
+    else if (fallback && current !== fallback) setCurrent(fallback);
     else setFailed(true);
   };
 

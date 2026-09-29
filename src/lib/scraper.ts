@@ -424,7 +424,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     for (const a of insertedAll.slice(0, 5)) {
       try {
         const r = await rewriteArticle(a);
-        await store.patch("articles", a.id, { ...r, tags: ["resumen:ia"] });
+        await store.patch("articles", a.id, { ...r, tags: ["resumen:ia2"] });
       } catch {
         /* se reintenta desde el back office */
       }

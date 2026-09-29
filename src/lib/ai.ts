@@ -129,15 +129,17 @@ const REWRITE_SCHEMA = {
 export async function rewriteArticle(a: Article): Promise<Pick<Article, "summary" | "body">> {
   let original = "";
   try {
-    original = extractArticleText(await fetchText(a.url, 12000)).slice(0, 6000);
+    original = extractArticleText(await fetchText(a.url, 12000)).slice(0, 9000);
   } catch {
     /* si no se puede leer la nota, se trabaja con título y bajada */
   }
   const out = await cheapJson<{ summary: string; body: string }>(
     "Sos redactor de Código Energía, medio argentino de energía, oil & gas y minería. Escribís en español rioplatense, estilo periodístico, " +
       "con tus propias palabras (nunca copies frases textuales largas) y sin agregar datos que no estén en el material. " +
-      'Respondé solo con JSON: {"summary": "copete de 1 o 2 oraciones, máx. 250 caracteres", "body": "resumen de 2 o 3 párrafos breves separados por una línea en blanco, máx. 160 palabras, que mencione al medio de origen"}.',
+      "Si el texto original es corto, no rellenes ni especules: escribí solo lo que el material permita. " +
+      'Respondé solo con JSON: {"summary": "copete de 1 o 2 oraciones, máx. 250 caracteres", "body": "nota-resumen de 4 a 6 párrafos separados por una línea en blanco (entre 300 y 400 palabras): qué pasó, quiénes intervienen, cifras y datos clave, contexto para el sector energético argentino y próximos pasos si los hay; mencioná al medio de origen como fuente"}.',
     `Medio de origen: ${a.source_name ?? "desconocido"}\nTítulo: ${a.title}\nBajada: ${a.summary}\n\nTexto original:\n${original || "(no disponible)"}`,
+    1800,
   );
   if (!out.body) throw new Error("La IA devolvió un resumen vacío");
   return { summary: out.summary, body: out.body };
