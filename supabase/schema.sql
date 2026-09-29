@@ -42,7 +42,8 @@ create table if not exists articles (
   status text not null default 'published' check (status in ('published', 'draft', 'hidden')),
   featured boolean not null default false,
   views int not null default 0,
-  geo jsonb
+  geo jsonb,
+  enriched boolean not null default false
 );
 create index if not exists articles_published_idx on articles (status, published_at desc);
 create index if not exists articles_category_idx on articles (category, published_at desc);
@@ -69,7 +70,14 @@ create table if not exists indicators (
   note text,
   counter_start timestamptz,
   counter_base double precision,
-  counter_rate_per_day double precision
+  counter_rate_per_day double precision,
+  counter_since timestamptz,
+  counter_label text,
+  source text,
+  source_url text,
+  fallback_provider text,
+  fallback_param text,
+  metric text
 );
 
 create table if not exists sections (
@@ -134,3 +142,13 @@ on conflict (id) do nothing;
 
 -- Si la base ya existía antes de la geolocalización de noticias:
 alter table articles add column if not exists geo jsonb;
+
+-- Columnas agregadas después (fuentes oficiales, imágenes): seguras de correr sobre una base existente
+alter table articles add column if not exists enriched boolean not null default false;
+alter table indicators add column if not exists counter_since timestamptz;
+alter table indicators add column if not exists counter_label text;
+alter table indicators add column if not exists source text;
+alter table indicators add column if not exists source_url text;
+alter table indicators add column if not exists fallback_provider text;
+alter table indicators add column if not exists fallback_param text;
+alter table indicators add column if not exists metric text;

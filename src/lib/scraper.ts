@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import { makeGeolocator } from "./geo";
+import { isGoogleNewsUrl, resolveGoogleNewsUrl } from "./gnews";
 import { getStore } from "./store";
 import type { Article, Source } from "./types";
 
@@ -198,6 +199,30 @@ export function extractMeta(html: string, pageUrl: string): PageMeta {
 }
 
 // Orden = prioridad. Solo se ancla el inicio de palabra para aceptar plurales y derivados.
+/** Descarta logos, íconos y píxeles de seguimiento; fuerza https para evitar contenido mixto. */
+export function cleanImage(src?: string | null): string | null {
+  if (!src) return null;
+  let u = src.trim();
+  if (u.startsWith("//")) u = `https:${u}`;
+  if (!/^https?:\/\//.test(u)) return null;
+  u = u.replace(/^http:\/\//, "https://");
+  if (/\.(svg|ico)(\?|$)|gravatar|logo|favicon|placeholder|blank\.(gif|png)|1x1|pixel|spacer|lh3\.googleusercontent|news\.google/i.test(u)) return null;
+  return u;
+}
+
+/** Completa imagen, bajada, fecha y URL real de una nota leyendo la página original. */
+export async function enrichItem(it: RawItem): Promise<void> {
+  if (isGoogleNewsUrl(it.url)) {
+    const real = await resolveGoogleNewsUrl(it.url).catch(() => null);
+    if (real) it.url = real;
+    else return;
+  }
+  const meta = extractMeta(await fetchText(it.url, 10000), it.url);
+  it.image = cleanImage(it.image) ?? cleanImage(meta.image);
+  if (!it.summary && meta.description) it.summary = truncate(stripHtml(meta.description), 420);
+  if (!it.date && meta.published && !isNaN(+new Date(meta.published))) it.date = new Date(meta.published).toISOString();
+}
+
 const CLASSIFIER: [string, RegExp][] = [
   ["mineria", /(^|[^\p{L}])(miner[ií]a|miner[oa]s?|mining|litio|lithium|cobre|copper|oro\b|plata\b|salar(es)?\b|uranio|metalífer|exploraci[oó]n minera|RIGI minero)/iu],
   ["renovables", /(^|[^\p{L}])(solar(es)?\b|e[oó]lic|renovable|fotovoltaic|hidr[oó]geno verde|biocombustible|bioetanol|biodi[eé]sel)/iu],
@@ -259,18 +284,18 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
   const now = new Date().toISOString();
   try {
     const raw = await fetchSource(source);
+    // el id se calcula con el link del feed (estable entre corridas), antes de resolver redirecciones
     const ids = raw.map((r) => articleId(r.url));
     const existing = await store.existingArticleIds(ids);
-    const fresh = raw.filter((r, i) => !existing.has(ids[i]) && !knownTitles.has(titleKey(r.title)));
+    const fresh = raw
+      .map((r, i) => ({ ...r, id: ids[i] }))
+      .filter((r) => !existing.has(r.id) && !knownTitles.has(titleKey(r.title)));
 
-    if (source.fetch_meta) {
+    if (source.fetch_meta || source.type === "google_news") {
       await mapLimit(fresh, 4, async (it) => {
-        if (it.image && it.summary && it.date) return;
+        if (it.image && it.summary && it.date && !isGoogleNewsUrl(it.url)) return;
         try {
-          const meta = extractMeta(await fetchText(it.url, 10000), it.url);
-          it.image ||= meta.image;
-          it.summary ||= truncate(meta.description ?? "", 420);
-          if (!it.date && meta.published && !isNaN(+new Date(meta.published))) it.date = new Date(meta.published).toISOString();
+          await enrichItem(it);
         } catch {
           /* la nota se guarda igual, sin imagen */
         }
@@ -281,11 +306,12 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
       knownTitles.add(titleKey(it.title));
       const published = it.date && new Date(it.date) <= new Date() ? it.date : now;
       return {
-        id: articleId(it.url),
+        id: it.id,
         url: normalizeUrl(it.url),
         title: it.title,
         summary: it.summary,
-        image: it.image ?? null,
+        image: cleanImage(it.image),
+        enriched: true,
         source_id: source.id,
         source_name: it.source_name || source.name.replace(/^Google News · /, ""),
         category: source.category === "auto" ? classify(`${it.title} ${it.summary}`, "auto") : source.category,
@@ -338,6 +364,8 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     }
   }
 
+  if (!onlySourceId) await enrichMissing(25).catch(() => undefined);
+
   let removed = 0;
   if (!onlySourceId && settings.retention_days > 0) {
     const cutoff = new Date(Date.now() - settings.retention_days * 86400000).toISOString();
@@ -361,4 +389,22 @@ export async function geotagArticles(force = false, limit = 500): Promise<{ chec
     }
   }
   return { checked: list.length, tagged };
+}
+
+/** Busca imagen (y la URL real) para notas recientes que quedaron sin foto. */
+export async function enrichMissing(limit = 25): Promise<number> {
+  const store = await getStore();
+  const pending = (await store.queryArticles({ status: "all", limit: 200 })).filter((a) => !a.image && !a.enriched).slice(0, limit);
+  let fixed = 0;
+  await mapLimit(pending, 4, async (a) => {
+    const it: RawItem = { title: a.title, url: a.url, summary: a.summary, image: null, date: a.published_at };
+    try {
+      await enrichItem(it);
+    } catch {
+      /* se marca igual para no reintentar siempre */
+    }
+    if (it.image) fixed++;
+    await store.patch("articles", a.id, { image: it.image ?? null, summary: a.summary || it.summary, url: normalizeUrl(it.url), enriched: true });
+  });
+  return fixed;
 }

@@ -4,7 +4,7 @@ import { Submit } from "@/components/admin/Submit";
 import { SCHEMAS } from "@/lib/admin-schema";
 import { formatNumber, timeAgo } from "@/lib/format";
 import { getStore } from "@/lib/store";
-import { refreshIndicatorsNow } from "../../actions";
+import { refreshIndicatorsNow, restoreOfficialCounters } from "../../actions";
 
 export default async function Indicadores({ searchParams }: { searchParams: FlashParams }) {
   const store = await getStore();
@@ -15,13 +15,18 @@ export default async function Indicadores({ searchParams }: { searchParams: Flas
     <div className="max-w-4xl">
       <div className="mb-2 flex items-center">
         <h1 className="text-2xl font-bold">Indicadores</h1>
-        <form action={refreshIndicatorsNow.bind(null, path)} className="ml-auto">
-          <Submit>Actualizar ahora</Submit>
-        </form>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <form action={refreshIndicatorsNow.bind(null, path, false)}><Submit>Actualizar cotizaciones</Submit></form>
+          <form action={refreshIndicatorsNow.bind(null, path, true)}><Submit className="btn">Actualizar datos oficiales</Submit></form>
+          <form action={restoreOfficialCounters}>
+            <Submit className="btn" confirm="Se restauran los contadores de producción de Vaca Muerta (Secretaría de Energía) y se ocultan los estimados manuales. ¿Seguir?">Restaurar contadores oficiales</Submit>
+          </form>
+        </div>
       </div>
       <p className="mb-6 text-sm text-muted">
-        Cotizaciones automáticas (Yahoo Finance, DolarAPI o cualquier URL JSON), valores manuales y contadores en vivo. Los contadores muestran
-        valor inicial + ritmo diario × días transcurridos: actualizá el ritmo cuando salgan datos oficiales de producción.
+        Cada dato muestra su fuente en el sitio. Cotizaciones: Yahoo Finance (con Stooq de respaldo), BCRA y DolarAPI; se actualizan cada pocos
+        minutos. Producción: Secretaría de Energía (Capítulo IV, no convencional), revisada dos veces por día; los contadores suman el dato
+        oficial del año y estiman en vivo al ritmo del último mes publicado.
       </p>
       <Flash {...(await searchParams)} />
       <CrudList

@@ -14,8 +14,8 @@ export default async function Mapa({ searchParams }: { searchParams: Promise<{ n
     <div>
       <SectionTitle title="El mapa de la energía" />
       <p className="mb-6 max-w-3xl text-muted">
-        Cada noticia aparece donde ocurre. Sumá las capas oficiales del SIG de la Secretaría de Energía (ductos, plantas) desde el
-        control de capas, filtrá la infraestructura por tipo y tocá un punto para ver el detalle.
+        Cada noticia aparece donde ocurre: tocá un círculo para ver las notas de ese lugar. Con <b>Capas</b> sumás la infraestructura y las
+        capas oficiales de la Secretaría de Energía.
       </p>
       <MapLoader {...data} height={640} focus={nota ?? null} showList />
     </div>

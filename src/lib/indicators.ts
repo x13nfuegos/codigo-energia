@@ -1,3 +1,4 @@
+import { counterFromMonthly, fetchBcra, fetchStooq, monthlyProduction, type MonthRow } from "./official";
 import { getStore } from "./store";
 import type { Indicator } from "./types";
 
@@ -58,12 +59,39 @@ function changeFromHistory(history: { t: string; v: number }[], value: number): 
   return prev && prev.v ? ((value - prev.v) / prev.v) * 100 : null;
 }
 
-export async function fetchIndicator(ind: Indicator): Promise<Partial<Indicator>> {
+async function quote(provider: Indicator["provider"], param: string, jsonPath?: string | null): Promise<Quote> {
+  switch (provider) {
+    case "yahoo":
+      return fetchYahoo(param);
+    case "dolarapi":
+      return fetchDolar(param);
+    case "stooq":
+      return { value: await fetchStooq(param), change_pct: null };
+    case "bcra":
+      return { value: await fetchBcra(param || "USD"), change_pct: null };
+    case "json":
+      return fetchCustomJson(param, jsonPath ?? "");
+    default:
+      throw new Error(`Proveedor sin cotización: ${provider}`);
+  }
+}
+
+type SeriesCache = Map<string, Promise<MonthRow[]>>;
+
+export async function fetchIndicator(ind: Indicator, series: SeriesCache = new Map()): Promise<Partial<Indicator>> {
   if (ind.provider === "manual" || ind.provider === "counter") return {};
+  if (ind.provider === "se_capitulo_iv") {
+    const key = `${ind.param}|${ind.json_path}`;
+    if (!series.has(key)) series.set(key, monthlyProduction(ind.param || undefined, ind.json_path || "vaca muerta"));
+    return counterFromMonthly(await series.get(key)!, ind.metric ?? "petroleo");
+  }
   let q: Quote;
-  if (ind.provider === "yahoo") q = await fetchYahoo(ind.param);
-  else if (ind.provider === "dolarapi") q = await fetchDolar(ind.param);
-  else q = await fetchCustomJson(ind.param, ind.json_path ?? "");
+  try {
+    q = await quote(ind.provider, ind.param, ind.json_path);
+  } catch (e) {
+    if (!ind.fallback_provider || !ind.fallback_param) throw e;
+    q = await quote(ind.fallback_provider, ind.fallback_param);
+  }
 
   const mult = ind.multiplier || 1;
   const value = q.value * mult;
@@ -80,14 +108,22 @@ export async function fetchIndicator(ind: Indicator): Promise<Partial<Indicator>
   return { value, change_pct, history, updated_at: new Date().toISOString() };
 }
 
-export async function refreshIndicators(): Promise<{ id: string; ok: boolean; error?: string }[]> {
+/** Las series oficiales mensuales se consultan como mucho dos veces por día. */
+const OFFICIAL_EVERY_MS = 12 * 3600000;
+
+export async function refreshIndicators(opts: { forceOfficial?: boolean } = {}): Promise<{ id: string; ok: boolean; error?: string }[]> {
   const store = await getStore();
   await store.saveSettings({ last_indicators_at: new Date().toISOString() });
-  const list = (await store.list("indicators")).filter((i) => i.enabled);
+  const series: SeriesCache = new Map();
+  const list = (await store.list("indicators")).filter(
+    (i) =>
+      i.enabled &&
+      (i.provider !== "se_capitulo_iv" || opts.forceOfficial || !i.updated_at || Date.now() - new Date(i.updated_at).getTime() > OFFICIAL_EVERY_MS),
+  );
   return Promise.all(
     list.map(async (ind) => {
       try {
-        const patch = await fetchIndicator(ind);
+        const patch = await fetchIndicator(ind, series);
         if (Object.keys(patch).length) await store.patch("indicators", ind.id, patch);
         return { id: ind.id, ok: true };
       } catch (e) {
@@ -102,4 +138,23 @@ export function counterValue(ind: Pick<Indicator, "counter_start" | "counter_bas
   const start = ind.counter_start ? new Date(ind.counter_start).getTime() : at;
   const days = Math.max(0, (at - start) / 86400000);
   return (ind.counter_base ?? 0) + days * (ind.counter_rate_per_day ?? 0);
+}
+
+export const isCounter = (i: Indicator) => i.provider === "counter" || i.provider === "se_capitulo_iv";
+
+/** Datos serializables para el componente de contadores. */
+export function toCounterData(c: Indicator) {
+  return {
+    id: c.id,
+    label: c.label,
+    unit: c.unit,
+    start: c.counter_start ?? new Date().toISOString(),
+    base: c.counter_base ?? c.value ?? 0,
+    ratePerDay: c.counter_rate_per_day ?? 0,
+    since: c.counter_since ?? null,
+    caption: c.counter_label ?? null,
+    source: c.source ?? null,
+    sourceUrl: c.source_url ?? null,
+    note: c.note ?? null,
+  };
 }

@@ -10,13 +10,13 @@ export function HeroCard({ a, cat }: P) {
   return (
     <article>
       <Link href={`/nota/${a.id}`} className="block">
-        <Img src={a.image} alt={a.title} cat={cat} className="aspect-[16/9] w-full rounded-xl" />
+        <Img src={a.image} alt={a.title} cat={cat} className="aspect-[16/9] w-full rounded-xl" priority />
       </Link>
       <div className="mt-5">
         <CategoryBadge cat={cat} />
       </div>
       <Link href={`/nota/${a.id}`}>
-        <h2 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight hover:underline md:text-5xl">{a.title}</h2>
+        <h2 className="mt-3 text-[clamp(1.6rem,6vw,2.75rem)] font-extrabold leading-[1.1] tracking-tight hover:underline">{a.title}</h2>
       </Link>
       {a.summary && <p className="mt-4 line-clamp-3 text-lg text-muted md:text-xl">{a.summary}</p>}
       <p className="mt-4 text-sm text-dim">

@@ -42,7 +42,7 @@ export function filterArticles(all: Article[], q: ArticleQuery): Article[] {
   let out = all.filter(
     (a) =>
       (status === "all" || a.status === status) &&
-      (!q.category || a.category === q.category) &&
+      (!q.category || (Array.isArray(q.category) ? q.category.includes(a.category) : a.category === q.category)) &&
       (q.featured === undefined || !!a.featured === q.featured) &&
       (!q.since || a.published_at >= q.since) &&
       (!q.hasGeo || !!a.geo) &&

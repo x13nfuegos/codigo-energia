@@ -26,6 +26,7 @@ export interface NewsPin {
   lat: number;
   lng: number;
   place: string;
+  image?: string | null;
 }
 
 export interface EnergyMapProps {
@@ -37,4 +38,8 @@ export interface EnergyMapProps {
   focus?: string | null;
   /** muestra la lista lateral de noticias */
   showList?: boolean;
+  /** secciones para filtrar noticias */
+  categories?: { slug: string; name: string; color: string; text: string }[];
+  /** token opcional de Mapbox para el mapa base */
+  mapboxToken?: string | null;
 }

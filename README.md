@@ -63,11 +63,34 @@ Tareas: `scrape`, `indicators`, `daily` (`?force=1` para regenerar), `videos` (r
   En Back office → Mapa → "Explorar capas oficiales" se listan todas las capas del servicio y se agregan con un clic.
 - **Infraestructura**: puntos propios (yacimientos, refinerías, centrales, minas, litio, puertos) editables.
 
-## Contadores en vivo
+## Datos oficiales y fuentes
 
-Los contadores (barriles, gas, litio) muestran *valor inicial + ritmo diario × días transcurridos* desde la fecha configurada.
-Vienen con el ritmo que se ve hoy en el sitio; conviene actualizarlo en **Indicadores** cuando la Secretaría de Energía publica
-los datos de producción (datos.energia.gob.ar).
+Cada dato muestra su fuente en el sitio (y en `/indicadores` hay una tabla con todas):
+
+| Dato | Fuente |
+|---|---|
+| Petróleo, gas y pozos en producción de Vaca Muerta | Secretaría de Energía — Capítulo IV, producción no convencional (`datos.energia.gob.ar`), revisado dos veces por día |
+| Dólar mayorista | BCRA, Comunicación A 3500 (respaldo: DolarAPI) |
+| Dólar oficial, blue, MEP, CCL | DolarAPI (Banco Nación / mercado) |
+| WTI, Brent, Henry Hub, oro, plata, cobre, acciones | Yahoo Finance (NYMEX, ICE, COMEX, NYSE, BYMA), con Stooq de respaldo |
+
+Los contadores de producción suman el dato **oficial** del año hasta el último mes publicado y, desde ahí, estiman en vivo al
+ritmo diario de ese mes (lo aclaran debajo). Si hace falta, **Indicadores → Restaurar contadores oficiales** los vuelve a cargar.
+
+## Imágenes
+
+Las notas de Google News se decodifican para llegar al medio original y tomar su foto y bajada. Si un medio bloquea la carga
+directa de imágenes, se sirven a través de `/api/img` (proxy con caché en la CDN).
+
+## App instalable (PWA)
+
+El sitio se puede instalar en el celular ("Agregar a pantalla de inicio"): tiene manifiesto, íconos con los colores de la
+variante activa y service worker que guarda las últimas notas para leer sin conexión.
+
+## Mapa
+
+Base CARTO/OpenStreetMap sin configurar nada. Para un mapa base más prolijo, cargá `NEXT_PUBLIC_MAPBOX_TOKEN` con un token
+público de Mapbox y volvé a desplegar.
 
 ## Notas
 

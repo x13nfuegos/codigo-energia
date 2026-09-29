@@ -114,17 +114,24 @@ body {
 .card { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: .75rem; }
 
 /* noticias en el mapa */
-.news-pin {
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 9999px; background: var(--color-accent); color: var(--color-accent-ink);
-  font: 700 12px/1 var(--font-mono); border: 2px solid var(--color-bg);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+.map-pin {
+  display: flex; align-items: center; justify-content: center; border-radius: 9999px;
+  background: var(--pin); color: #fff; font: 700 12px/1 var(--font-mono);
+  border: 2px solid var(--color-bg); cursor: pointer; transition: transform .15s;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--pin) 30%, transparent), 0 4px 14px rgb(0 0 0 / .35);
 }
-.news-pin--fresh { animation: pin-pulse 2s ease-out infinite; }
+.map-pin span { text-shadow: 0 1px 2px rgb(0 0 0 / .5); }
+.map-pin:hover { transform: scale(1.12); }
+.map-pin--on { transform: scale(1.18); border-color: var(--color-accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.map-pin--fresh { animation: pin-pulse 2.2s ease-out infinite; }
 @keyframes pin-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent); }
-  100% { box-shadow: 0 0 0 16px transparent; }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pin) 65%, transparent), 0 4px 14px rgb(0 0 0 / .35); }
+  100% { box-shadow: 0 0 0 18px transparent, 0 4px 14px rgb(0 0 0 / .35); }
 }
+.leaflet-tooltip { background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .3); font: 12px/1.4 var(--font-sans); }
+.leaflet-tooltip-top:before { border-top-color: var(--color-line); }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--color-surface) 80%, transparent) !important; color: var(--color-dim) !important; font-size: 10px !important; }
+.leaflet-control-attribution a { color: var(--color-muted) !important; }
 .news-popup { display: flex; flex-direction: column; gap: 8px; min-width: 240px; }
 .news-popup__place { font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--color-muted); }
 .news-popup__item { display: flex; flex-direction: column; gap: 3px; padding: 6px 0; border-top: 1px solid var(--color-line); color: var(--color-ink) !important; text-decoration: none; }

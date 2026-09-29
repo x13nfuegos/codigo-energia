@@ -3,8 +3,8 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, LayersControl, MapContainer, Marker, Popup, TileLayer, WMSTileLayer, useMap } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { CircleMarker, MapContainer, Marker, TileLayer, Tooltip, WMSTileLayer, useMap } from "react-leaflet";
 import { timeAgo } from "@/lib/format";
 import { POINT_TYPES, type EnergyMapProps, type NewsPin } from "@/lib/map-types";
 import type { MapPointType } from "@/lib/types";
@@ -14,134 +14,211 @@ const PERIODS = [
   { days: 7, label: "7 días" },
   { days: 30, label: "30 días" },
 ];
+const ARG = L.latLngBounds([-55.2, -73.6], [-21.7, -53.5]);
 
 type Group = { key: string; lat: number; lng: number; place: string; items: NewsPin[] };
+
+const keyOf = (lat: number, lng: number) => `${lat.toFixed(2)},${lng.toFixed(2)}`;
 
 function groupNews(news: NewsPin[]): Group[] {
   const map = new Map<string, Group>();
   for (const n of news) {
-    const key = `${n.lat.toFixed(2)},${n.lng.toFixed(2)}`;
+    const key = keyOf(n.lat, n.lng);
     const g = map.get(key) ?? { key, lat: n.lat, lng: n.lng, place: n.place, items: [] };
     g.items.push(n);
     map.set(key, g);
   }
-  return [...map.values()];
+  return [...map.values()].map((g) => ({ ...g, items: g.items.sort((a, b) => b.published_at.localeCompare(a.published_at)) }));
 }
 
-function newsIcon(count: number, fresh: boolean) {
-  const size = Math.round(26 + Math.min(count, 12) * 2.5);
+/** Pin de noticias: color de la sección de la nota más reciente, tamaño según cantidad. */
+function pinIcon(g: Group, selected: boolean) {
+  const count = g.items.length;
+  const size = Math.round(30 + Math.min(count, 10) * 2.4);
+  const fresh = Date.now() - new Date(g.items[0].published_at).getTime() < 86400000;
   return L.divIcon({
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-    html: `<div class="news-pin${fresh ? " news-pin--fresh" : ""}" style="width:${size}px;height:${size}px">${count}</div>`,
+    html: `<div class="map-pin${fresh ? " map-pin--fresh" : ""}${selected ? " map-pin--on" : ""}" style="--pin:${g.items[0].catColor};width:${size}px;height:${size}px"><span>${count}</span></div>`,
   });
 }
 
-/** Centra el mapa y abre el popup de la nota enfocada. */
-function Focus({ group, markers }: { group: Group | null; markers: React.RefObject<Map<string, L.Marker>> }) {
+/** Vuela hasta la selección y habilita el zoom con rueda recién después de un clic. */
+function Camera({ target }: { target: Group | null }) {
   const map = useMap();
   useEffect(() => {
-    if (!group) return;
-    map.flyTo([group.lat, group.lng], Math.max(map.getZoom(), 6), { duration: 0.8 });
-    const t = setTimeout(() => markers.current?.get(group.key)?.openPopup(), 850);
-    return () => clearTimeout(t);
-  }, [group, map, markers]);
+    if (target) map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 6), { duration: 0.7 });
+  }, [target, map]);
+  useEffect(() => {
+    const on = () => map.scrollWheelZoom.enable();
+    const off = () => map.scrollWheelZoom.disable();
+    map.on("click", on);
+    map.on("mouseout", off);
+    return () => {
+      map.off("click", on);
+      map.off("mouseout", off);
+    };
+  }, [map]);
   return null;
 }
 
-export default function EnergyMap({ points, news, layers, height = 560, focus, showList = false }: EnergyMapProps) {
+const toggled = <T,>(set: Set<T>, v: T) => {
+  const next = new Set(set);
+  if (next.has(v)) next.delete(v);
+  else next.add(v);
+  return next;
+};
+
+export default function EnergyMap({ points, news, layers, height = 560, focus, showList = false, categories = [], mapboxToken }: EnergyMapProps) {
   const [days, setDays] = useState(focus ? 30 : 7);
   const [showNews, setShowNews] = useState(true);
+  const [cats, setCats] = useState<Set<string>>(new Set());
   const types = useMemo(() => [...new Set(points.map((p) => p.type))], [points]);
   const [active, setActive] = useState<Set<MapPointType>>(new Set(types));
-  const [focusId, setFocusId] = useState<string | null>(focus ?? null);
-  const markers = useRef(new Map<string, L.Marker>());
-  // el mapa base acompaña a la variante clara u oscura de la identidad
-  const [light] = useState(() => typeof document !== "undefined" && document.documentElement.dataset.theme === "light");
+  const [wms, setWms] = useState<Set<string>>(new Set(layers.filter((l) => l.enabled && l.visible).map((l) => l.id)));
+  const [panel, setPanel] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [full, setFull] = useState(false);
+  const [light, setLight] = useState(false);
+  const [map, setMap] = useState<L.Map | null>(null);
+
+  useEffect(() => setLight(document.documentElement.dataset.theme === "light"), []);
+  useEffect(() => {
+    const t = setTimeout(() => map?.invalidateSize(), 150);
+    if (!full) return () => clearTimeout(t);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    document.addEventListener("keydown", esc);
+    document.body.style.overflow = "hidden";
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("keydown", esc);
+      document.body.style.overflow = "";
+    };
+  }, [full, map]);
 
   const since = Date.now() - days * 86400000;
-  const visibleNews = useMemo(() => news.filter((n) => new Date(n.published_at).getTime() >= since), [news, since]);
+  const visibleNews = useMemo(
+    () => news.filter((n) => new Date(n.published_at).getTime() >= since && (!cats.size || cats.has(n.category))),
+    [news, since, cats],
+  );
   const groups = useMemo(() => groupNews(visibleNews), [visibleNews]);
-  const focusGroup = useMemo(() => (focusId ? groups.find((g) => g.items.some((i) => i.id === focusId)) ?? null : null), [focusId, groups]);
-  const bounds = L.latLngBounds([-55.2, -73.6], [-21.7, -53.5]);
-  const enabledLayers = layers.filter((l) => l.enabled);
+  useEffect(() => {
+    const n = focus ? news.find((x) => x.id === focus) : null;
+    if (n) setSelected(keyOf(n.lat, n.lng));
+  }, [focus, news]);
+  const sel = groups.find((g) => g.key === selected) ?? null;
+  const usedCats = categories.filter((c) => news.some((n) => n.category === c.slug));
+  const list = (sel ? sel.items : visibleNews).slice(0, 40);
+  const mapHeight = full ? "100%" : `min(${height}px, 70vh)`;
 
-  const toggle = (t: MapPointType) =>
-    setActive((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
+  const tiles = mapboxToken
+    ? {
+        url: `https://api.mapbox.com/styles/v1/mapbox/${light ? "light-v11" : "dark-v11"}/tiles/{z}/{x}/{y}@2x?access_token=${mapboxToken}`,
+        attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        tileSize: 512,
+        zoomOffset: -1,
+      }
+    : {
+        url: `https://{s}.basemaps.cartocdn.com/${light ? "rastertiles/voyager" : "dark_all"}/{z}/{x}/{y}{r}.png`,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        tileSize: 256,
+        zoomOffset: 0,
+      };
 
   const chip = (on: boolean) =>
-    `flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition ${on ? "border-line bg-surface-2 text-ink" : "border-transparent text-dim line-through"}`;
+    `inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition ${on ? "border-accent bg-accent/10 text-ink" : "border-line text-muted hover:text-ink"}`;
+  const ctrl = "flex h-9 w-9 items-center justify-center border-b border-line last:border-0 hover:bg-surface-2 hover:text-accent";
 
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <button onClick={() => setShowNews(!showNews)} className={chip(showNews)}>
-          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
-          Noticias ({visibleNews.length})
-        </button>
-        <div className="flex overflow-hidden rounded-full border border-line text-sm">
+    <div className={full ? "fixed inset-0 z-[60] flex flex-col bg-bg p-3 md:p-5" : ""}>
+      {/* filtros */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 font-mono">
+        <div className="flex overflow-hidden rounded-full border border-line text-xs">
           {PERIODS.map((p) => (
-            <button key={p.days} onClick={() => setDays(p.days)} className={`px-3 py-1 ${days === p.days ? "bg-accent text-accent-ink" : "text-muted hover:text-ink"}`}>
+            <button key={p.days} onClick={() => setDays(p.days)} className={`px-3 py-1.5 ${days === p.days ? "bg-accent text-accent-ink" : "text-muted hover:text-ink"}`}>
               {p.label}
             </button>
           ))}
         </div>
-      </div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {types.map((t) => (
-          <button key={t} onClick={() => toggle(t)} className={chip(active.has(t))}>
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: POINT_TYPES[t]?.color ?? "#999" }} />
-            {POINT_TYPES[t]?.label ?? t}
+        <div className="flex max-w-full gap-1.5 overflow-x-auto py-0.5">
+          <button onClick={() => setCats(new Set())} className={chip(!cats.size)}>
+            Todas
           </button>
-        ))}
+          {usedCats.map((c) => (
+            <button key={c.slug} onClick={() => setCats(toggled(cats, c.slug))} className={chip(cats.has(c.slug))}>
+              <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+              {c.name}
+            </button>
+          ))}
+        </div>
+        <div className="relative ml-auto flex gap-1.5">
+          <button onClick={() => setPanel(!panel)} className={chip(panel)} aria-expanded={panel}>
+            ◧ Capas
+          </button>
+          <button onClick={() => setFull(!full)} className={chip(full)} aria-label={full ? "Salir de pantalla completa" : "Pantalla completa"}>
+            {full ? "✕ Cerrar" : "⤢ Ampliar"}
+          </button>
+          {panel && (
+            <div className="absolute right-0 top-full z-[1000] mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-4 font-sans text-sm shadow-2xl">
+              <label className="flex items-center gap-2 font-semibold">
+                <input type="checkbox" checked={showNews} onChange={() => setShowNews(!showNews)} className="accent-[var(--color-accent)]" />
+                Noticias ({visibleNews.length})
+              </label>
+              <div className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.15em] text-dim">Infraestructura</div>
+              <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5">
+                {types.map((t) => (
+                  <label key={t} className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={active.has(t)} onChange={() => setActive(toggled(active, t))} className="accent-[var(--color-accent)]" />
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: POINT_TYPES[t]?.color }} />
+                    <span className="truncate">{POINT_TYPES[t]?.label ?? t}</span>
+                  </label>
+                ))}
+              </div>
+              {layers.some((l) => l.enabled) && (
+                <>
+                  <div className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.15em] text-dim">Capas oficiales · Secretaría de Energía</div>
+                  <div className="mt-2 space-y-1.5">
+                    {layers
+                      .filter((l) => l.enabled)
+                      .map((l) => (
+                        <label key={l.id} className="flex items-center gap-2 text-xs">
+                          <input type="checkbox" checked={wms.has(l.id)} onChange={() => setWms(toggled(wms, l.id))} className="accent-[var(--color-accent)]" />
+                          {l.label}
+                        </label>
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className={showList ? "grid gap-4 lg:grid-cols-[1fr_340px]" : ""}>
-        <div className="overflow-hidden rounded-xl border border-line" style={{ height }}>
-          <MapContainer bounds={bounds} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a> · Capas: <a href="https://sig.energia.gob.ar">SIG Secretaría de Energía</a>'
-              url={`https://{s}.basemaps.cartocdn.com/${light ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png`}
-            />
-            {enabledLayers.length > 0 && (
-              <LayersControl position="topright">
-                {enabledLayers.map((l) => (
-                  <LayersControl.Overlay key={l.id} name={l.label} checked={l.visible}>
-                    <WMSTileLayer url={l.url} params={{ layers: l.layers, format: "image/png", transparent: true }} opacity={l.opacity} />
-                  </LayersControl.Overlay>
-                ))}
-              </LayersControl>
-            )}
+      <div className={`grid min-h-0 gap-3 ${full ? "flex-1 lg:grid-cols-[1fr_380px]" : showList ? "lg:grid-cols-[1fr_360px]" : ""}`}>
+        <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-line" style={{ height: mapHeight }}>
+          <MapContainer ref={setMap} bounds={ARG} scrollWheelZoom={false} zoomControl={false} style={{ height: "100%", width: "100%" }}>
+            <TileLayer {...tiles} />
+            {layers
+              .filter((l) => l.enabled && wms.has(l.id))
+              .map((l) => (
+                <WMSTileLayer key={l.id} url={l.url} params={{ layers: l.layers, format: "image/png", transparent: true }} opacity={l.opacity} />
+              ))}
             {points
               .filter((p) => active.has(p.type))
               .map((p) => (
                 <CircleMarker
                   key={p.id}
                   center={[p.lat, p.lng]}
-                  radius={6}
-                  pathOptions={{ color: light ? "#ffffff" : "#0b0e14", weight: 1.5, fillColor: POINT_TYPES[p.type]?.color ?? "#999", fillOpacity: 0.95 }}
+                  radius={5}
+                  pathOptions={{ color: light ? "#ffffff" : "#0b0e14", weight: 1.5, fillColor: POINT_TYPES[p.type]?.color ?? "#999", fillOpacity: 0.9 }}
                 >
-                  <Popup>
-                    <strong>{p.name}</strong>
+                  <Tooltip direction="top" offset={[0, -4]}>
+                    <b>{p.name}</b>
                     <br />
-                    <small>
-                      {POINT_TYPES[p.type]?.label ?? p.type} · {p.province}
-                      {p.operator ? ` · ${p.operator}` : ""}
-                    </small>
-                    {p.description && <p style={{ margin: "6px 0 0" }}>{p.description}</p>}
-                    {p.link && (
-                      <a href={p.link} target="_blank" rel="noopener noreferrer">
-                        Más información
-                      </a>
-                    )}
-                  </Popup>
+                    {POINT_TYPES[p.type]?.label ?? p.type} · {p.province}
+                    {p.operator ? ` · ${p.operator}` : ""}
+                  </Tooltip>
                 </CircleMarker>
               ))}
             {showNews &&
@@ -149,51 +226,81 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
                 <Marker
                   key={g.key}
                   position={[g.lat, g.lng]}
-                  icon={newsIcon(g.items.length, g.items.some((i) => Date.now() - new Date(i.published_at).getTime() < 86400000))}
-                  zIndexOffset={1000}
-                  ref={(m) => {
-                    if (m) markers.current.set(g.key, m);
-                    else markers.current.delete(g.key);
-                  }}
-                >
-                  <Popup maxWidth={320}>
-                    <div className="news-popup">
-                      <div className="news-popup__place">📍 {g.place}</div>
-                      {g.items.slice(0, 8).map((n) => (
-                        <Link key={n.id} href={`/nota/${n.id}`} className={`news-popup__item${n.id === focusId ? " is-focus" : ""}`}>
-                          <span className="news-popup__cat" style={{ background: n.catColor, color: n.catText }}>{n.catName}</span>
-                          <span className="news-popup__title">{n.title}</span>
-                          <span className="news-popup__time">{timeAgo(n.published_at)}</span>
-                        </Link>
-                      ))}
-                      {g.items.length > 8 && <div className="news-popup__time">y {g.items.length - 8} más…</div>}
-                    </div>
-                  </Popup>
-                </Marker>
+                  icon={pinIcon(g, g.key === selected)}
+                  zIndexOffset={g.key === selected ? 2000 : 1000}
+                  eventHandlers={{ click: () => setSelected(g.key === selected ? null : g.key) }}
+                  title={`${g.place}: ${g.items.length} noticia(s)`}
+                />
               ))}
-            <Focus group={focusGroup} markers={markers} />
+            <Camera target={sel} />
           </MapContainer>
+
+          <div className="absolute right-3 top-3 z-[500] flex flex-col overflow-hidden rounded-lg border border-line bg-surface/90 font-mono text-base backdrop-blur">
+            <button className={ctrl} onClick={() => map?.zoomIn()} aria-label="Acercar">+</button>
+            <button className={ctrl} onClick={() => map?.zoomOut()} aria-label="Alejar">−</button>
+            <button
+              className={ctrl}
+              onClick={() => {
+                setSelected(null);
+                map?.flyToBounds(ARG, { duration: 0.6 });
+              }}
+              aria-label="Ver todo el país"
+              title="Ver todo el país"
+            >
+              ⌂
+            </button>
+          </div>
+
+          <div className="pointer-events-none absolute bottom-3 left-3 z-[500] hidden rounded-lg border border-line bg-surface/85 px-3 py-2 font-mono text-[0.65rem] text-muted backdrop-blur sm:block">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[0.55rem] font-bold text-accent-ink">3</span>
+              noticias en ese lugar · tocá para verlas
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="ml-1 h-2 w-2 rounded-full bg-muted" />
+              infraestructura · pasá el mouse
+            </div>
+          </div>
         </div>
 
-        {showList && (
-          <aside className="max-h-[560px] overflow-y-auto rounded-xl border border-line bg-surface" style={{ maxHeight: height }}>
-            <div className="sticky top-0 border-b border-line bg-surface px-4 py-3 font-mono text-xs uppercase tracking-[0.15em] text-muted">
-              Noticias en el mapa · {PERIODS.find((p) => p.days === days)?.label}
+        {(showList || full || sel) && (
+          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-surface" style={{ maxHeight: full ? "100%" : `min(${height}px, 70vh)` }}>
+            <div className="flex items-center gap-2 border-b border-line px-4 py-3 font-mono text-xs uppercase tracking-[0.15em] text-muted">
+              {sel ? (
+                <>
+                  <span className="truncate text-ink">📍 {sel.place}</span>
+                  <button onClick={() => setSelected(null)} className="ml-auto shrink-0 normal-case tracking-normal text-dim hover:text-accent">
+                    ver todas ✕
+                  </button>
+                </>
+              ) : (
+                <>
+                  Noticias en el mapa <span className="ml-auto text-dim">{visibleNews.length}</span>
+                </>
+              )}
             </div>
-            {!visibleNews.length && <p className="p-4 text-sm text-dim">No hay noticias geolocalizadas en este período.</p>}
-            {visibleNews.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => {
-                  setShowNews(true);
-                  setFocusId(n.id);
-                }}
-                className={`block w-full border-b border-line px-4 py-3 text-left hover:bg-surface-2 ${n.id === focusId ? "bg-surface-2" : ""}`}
-              >
-                <div className="text-xs text-dim">📍 {n.place} · {timeAgo(n.published_at)}</div>
-                <div className="mt-1 text-sm font-semibold leading-snug">{n.title}</div>
-              </button>
-            ))}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {!list.length && <p className="p-4 text-sm text-dim">No hay noticias ubicadas en este período.</p>}
+              {list.map((n) => (
+                <div key={n.id} className={`flex gap-3 border-b border-line px-4 py-3 last:border-0 ${n.id === focus ? "bg-surface-2" : ""}`}>
+                  {n.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={n.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = "none")} className="h-14 w-14 shrink-0 rounded-md bg-surface-2 object-cover" />
+                  )}
+                  <div className="min-w-0">
+                    <button onClick={() => setSelected(keyOf(n.lat, n.lng))} className="flex max-w-full items-center gap-1.5 text-left text-[0.7rem] text-dim hover:text-accent">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: n.catColor }} />
+                      <span className="truncate">
+                        {n.place} · {timeAgo(n.published_at)}
+                      </span>
+                    </button>
+                    <Link href={`/nota/${n.id}`} className="mt-0.5 line-clamp-3 text-sm font-semibold leading-snug hover:underline">
+                      {n.title}
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
           </aside>
         )}
       </div>

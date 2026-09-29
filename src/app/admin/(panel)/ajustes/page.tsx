@@ -2,11 +2,11 @@ import { Flash, type FlashParams } from "@/components/admin/Flash";
 import { Submit } from "@/components/admin/Submit";
 import { Logo } from "@/components/Logo";
 import { THEMES, type ThemeId } from "@/lib/themes";
-import { getStore } from "@/lib/store";
+import { getSettings } from "@/lib/site";
 import { saveSettings } from "../../actions";
 
 export default async function Ajustes({ searchParams }: { searchParams: FlashParams }) {
-  const s = await (await getStore()).getSettings();
+  const s = await getSettings();
   const text = (name: keyof typeof s, label: string, help?: string) => (
     <label className="field">
       {label}
@@ -65,12 +65,12 @@ export default async function Ajustes({ searchParams }: { searchParams: FlashPar
         <fieldset className="card grid gap-4 p-5">
           <legend className="px-2 font-bold">Secciones</legend>
           <label className="field">
-            Una por línea: <code>slug | Nombre | color de fondo | color de texto</code>
+            Una por línea: <code>slug | Nombre | color de fondo | color de texto | sección madre (opcional)</code>. Ej.: <code>renovables | Renovables | #15803d | #ffffff | energia</code>
             <textarea
               name="categories"
               rows={7}
               className="input font-mono text-sm"
-              defaultValue={s.categories.map((c) => `${c.slug} | ${c.name} | ${c.color} | ${c.text}`).join("\n")}
+              defaultValue={s.categories.map((c) => `${c.slug} | ${c.name} | ${c.color} | ${c.text}${c.parent ? ` | ${c.parent}` : ""}`).join("\n")}
             />
           </label>
           <label className="field">

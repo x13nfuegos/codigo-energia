@@ -56,7 +56,7 @@ export default async function Dashboard({ searchParams }: { searchParams: FlashP
             <form action={scrapeNow.bind(null, null, "/admin")}>
               <Submit>Scrapear ahora</Submit>
             </form>
-            <form action={refreshIndicatorsNow.bind(null, "/admin")}>
+            <form action={refreshIndicatorsNow.bind(null, "/admin", false)}>
               <Submit className="btn">Actualizar indicadores</Submit>
             </form>
             <form action={generateBriefNow.bind(null, false)}>

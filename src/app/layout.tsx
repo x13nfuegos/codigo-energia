@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getSettings } from "@/lib/site";
 import { THEMES, isTheme } from "@/lib/themes";
+import { RegisterSW } from "@/components/RegisterSW";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -11,13 +12,15 @@ export async function generateMetadata(): Promise<Metadata> {
     description: s.description,
     openGraph: { siteName: s.site_name, locale: "es_AR", type: "website" },
     alternates: { types: { "application/rss+xml": "/feed.xml" } },
-    icons: { icon: { url: "/brand-icon", type: "image/svg+xml" } },
+    icons: { icon: { url: "/brand-icon", type: "image/svg+xml" }, apple: { url: "/pwa-icon/180", sizes: "180x180" } },
+    appleWebApp: { capable: true, title: "Código Energía", statusBarStyle: "black-translucent" },
+    formatDetection: { telephone: false },
   };
 }
 
 export async function generateViewport(): Promise<Viewport> {
   const s = await getSettings();
-  return { themeColor: THEMES[isTheme(s.theme) ? s.theme : "verde"].bg };
+  return { themeColor: THEMES[isTheme(s.theme) ? s.theme : "verde"].bg, width: "device-width", initialScale: 1, viewportFit: "cover" };
 }
 
 // Permite comparar variantes sin tocar la configuración: /?tema=cyan (queda activa durante la visita; ?tema=off vuelve a la oficial).
@@ -39,7 +42,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
         />
       </head>
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen">
+        {children}
+        <RegisterSW />
+      </body>
     </html>
   );
 }

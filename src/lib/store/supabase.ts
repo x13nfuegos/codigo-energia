@@ -77,7 +77,8 @@ export class SupabaseStore implements Store {
     let query = this.sb.from("articles").select("*", head ? { count: "exact", head: true } : undefined);
     const status = q.status ?? "published";
     if (status !== "all") query = query.eq("status", status);
-    if (q.category) query = query.eq("category", q.category);
+    if (Array.isArray(q.category)) query = query.in("category", q.category);
+    else if (q.category) query = query.eq("category", q.category);
     if (q.featured !== undefined) query = query.eq("featured", q.featured);
     if (q.since) query = query.gte("published_at", q.since);
     if (q.hasGeo) query = query.not("geo", "is", null);

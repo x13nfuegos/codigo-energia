@@ -7,6 +7,8 @@ export interface Category {
   color: string;
   /** color del texto de la etiqueta */
   text: string;
+  /** slug de la sección madre (ej. electricidad y renovables dentro de energía). "" = sección principal */
+  parent?: string;
 }
 
 export interface Article {
@@ -26,6 +28,8 @@ export interface Article {
   status: ArticleStatus;
   featured?: boolean;
   views?: number;
+  /** ya se intentó completar imagen/bajada desde la nota original */
+  enriched?: boolean;
   /** ubicación de la noticia (detectada automáticamente o cargada a mano) */
   geo?: GeoTag | null;
 }
@@ -83,7 +87,7 @@ export interface Source {
   last_count?: number | null;
 }
 
-export type IndicatorProvider = "dolarapi" | "yahoo" | "json" | "manual" | "counter";
+export type IndicatorProvider = "dolarapi" | "yahoo" | "stooq" | "bcra" | "json" | "manual" | "counter" | "se_capitulo_iv";
 
 export interface Indicator {
   id: string;
@@ -111,6 +115,18 @@ export interface Indicator {
   history?: { t: string; v: number }[];
   updated_at?: string | null;
   note?: string | null;
+  /** fuente citada en el sitio */
+  source?: string | null;
+  source_url?: string | null;
+  /** proveedor alternativo si el principal falla (ej. stooq cuando Yahoo no responde) */
+  fallback_provider?: IndicatorProvider | null;
+  fallback_param?: string | null;
+  /** se_capitulo_iv: qué se mide (param = id del recurso, json_path = formación) */
+  metric?: "petroleo" | "gas" | "pozos" | null;
+  /** fecha que se muestra como "desde" en el contador (si difiere de counter_start) */
+  counter_since?: string | null;
+  /** texto bajo el contador en lugar de "desde …" */
+  counter_label?: string | null;
   /** counter: valor en start_date y ritmo por día; el valor mostrado crece en vivo */
   counter_start?: string | null;
   counter_base?: number | null;
@@ -224,7 +240,8 @@ export interface Tables {
 export type TableName = keyof Tables;
 
 export interface ArticleQuery {
-  category?: string;
+  /** una sección o varias (una sección madre incluye a sus subsecciones) */
+  category?: string | string[];
   status?: ArticleStatus | "all";
   search?: string;
   limit?: number;

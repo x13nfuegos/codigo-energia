@@ -1,25 +1,56 @@
+import { isCounter, toCounterData } from "@/lib/indicators";
 import { getMapData } from "@/lib/map-data";
+import Link from "next/link";
 import { getStore } from "@/lib/store";
-import { categoryOf, getIndicators } from "@/lib/site";
+import { categoryFamily, categoryOf, getIndicators } from "@/lib/site";
 import type { Section, Settings } from "@/lib/types";
 import { BriefCard } from "./BriefCard";
 import { GridCard, HeroCard, ListItem, SectionTitle } from "./Cards";
 import { Counters } from "./Counters";
 import { IndicatorsPanel } from "./IndicatorsPanel";
 import { MapLoader } from "./MapLoader";
-import { Newsroom } from "./Newsroom";
 
 export async function SectionBlock({ section, settings }: { section: Section; settings: Settings }) {
   const store = await getStore();
   const cat = (slug: string) => categoryOf(settings, slug);
-  const q = { category: section.category || undefined, limit: section.limit || 6, offset: section.offset ?? 0 };
+  const q = { category: section.category ? categoryFamily(settings, section.category) : undefined, limit: section.limit || 6, offset: section.offset ?? 0 };
   const more = section.category ? `/seccion/${section.category}` : undefined;
 
   switch (section.type) {
     case "hero": {
       const featured = await store.queryArticles({ ...q, featured: true, limit: 1, offset: 0 });
       const [a] = featured.length ? featured : await store.queryArticles({ ...q, limit: 1 });
-      return a ? <HeroCard a={a} cat={cat(a.category)} /> : null;
+      if (!a) return null;
+      // en escritorio, al lado de la principal: lo más leído de la semana
+      const top = (await store.queryArticles({ orderBy: "views", since: new Date(Date.now() - 7 * 86400000).toISOString(), limit: 5 }))
+        .filter((x) => x.id !== a.id)
+        .slice(0, 4);
+      return (
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+          <HeroCard a={a} cat={cat(a.category)} />
+          {top.length > 0 && (
+            <aside className="hidden lg:block">
+              <div className="mb-2 flex items-center gap-2 border-b-2 border-line pb-2 font-mono text-xs uppercase tracking-[0.15em] text-muted">
+                <span className="h-4 w-1.5 rounded-sm bg-accent" />
+                Lo más leído
+              </div>
+              <ol>
+                {top.map((x, i) => (
+                  <li key={x.id} className="flex gap-3 border-b border-line py-4 last:border-0">
+                    <span className="font-mono text-2xl font-bold leading-none text-accent">{i + 1}</span>
+                    <div className="min-w-0">
+                      <Link href={`/nota/${x.id}`} className="font-semibold leading-snug hover:underline">
+                        {x.title}
+                      </Link>
+                      <div className="mt-1 text-xs text-dim">{cat(x.category).name}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </aside>
+          )}
+        </div>
+      );
     }
     case "list": {
       const list = await store.queryArticles(q);
@@ -52,27 +83,13 @@ export async function SectionBlock({ section, settings }: { section: Section; se
         </section>
       );
     }
-    case "newsroom": {
-      const list = await store.queryArticles({ ...q, offset: 0 });
-      if (!list.length) return null;
-      return <Newsroom title={section.title || "Redacción · en vivo"} items={list.map((a) => ({ id: a.id, title: a.title, tag: a.category.replace(/-/g, "") }))} />;
-    }
+    case "newsroom":
+      // "Lo importante — Redacción en vivo" ahora va fija arriba de todo, en el layout del sitio
+      return null;
     case "counters": {
-      const counters = (await getIndicators()).filter((i) => i.provider === "counter").slice(0, section.limit || 3);
+      const counters = (await getIndicators()).filter((i) => isCounter(i) && (i.value != null || i.counter_base != null)).slice(0, section.limit || 3);
       if (!counters.length) return null;
-      return (
-        <Counters
-          now={Date.now()}
-          items={counters.map((c) => ({
-            id: c.id,
-            label: c.label,
-            unit: c.unit,
-            start: c.counter_start ?? new Date().toISOString(),
-            base: c.counter_base ?? 0,
-            ratePerDay: c.counter_rate_per_day ?? 0,
-          }))}
-        />
-      );
+      return <Counters now={Date.now()} items={counters.map(toCounterData)} />;
     }
     case "indicators":
       return (

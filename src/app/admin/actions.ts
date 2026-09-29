@@ -170,9 +170,9 @@ export async function testSource(sourceId: string): Promise<TestResult> {
 
 // ---------- indicadores ----------
 
-export async function refreshIndicatorsNow(returnTo: string) {
+export async function refreshIndicatorsNow(returnTo: string, forceOfficial = false) {
   await requireAdmin();
-  const r = await refreshIndicators();
+  const r = await refreshIndicators({ forceOfficial });
   const bad = r.filter((x) => !x.ok);
   back(returnTo, bad.length ? `Actualizados con ${bad.length} error(es): ${bad.map((b) => `${b.id} (${b.error})`).join(", ")}` : "Indicadores actualizados", bad.length > 0);
 }
@@ -246,7 +246,7 @@ export async function saveSettings(fd: FormData) {
       .split("\n")
       .map((l) => l.split("|").map((x) => x.trim()))
       .filter((p) => p[0] && p[1])
-      .map(([slug, name, color, text]) => ({ slug: slugify(slug), name, color: color || "#3a3f47", text: text || "#ffffff" }));
+      .map(([slug, name, color, text, parent]) => ({ slug: slugify(slug), name, color: color || "#3a3f47", text: text || "#ffffff", parent: parent ? slugify(parent) : "" }));
     if (!categories.length) throw new Error("Tiene que haber al menos una sección");
     const social = str("social")
       .split("\n")
@@ -347,4 +347,21 @@ export async function addWmsLayer(url: string, name: string, title: string) {
     await store.saveSettings({ map_layers: layers });
   }
   revalidatePath("/", "layout");
+}
+
+/** Vuelve a cargar los contadores oficiales de producción con su configuración por defecto. */
+export async function restoreOfficialCounters() {
+  await requireAdmin();
+  const { OFFICIAL_COUNTERS } = await import("@/lib/defaults");
+  const store = await getStore();
+  const existing = await store.list("indicators");
+  await store.upsert(
+    "indicators",
+    OFFICIAL_COUNTERS.map((c) => ({ ...c, order: existing.find((e) => e.id === c.id)?.order ?? c.order })),
+  );
+  // los contadores estimados viejos dejan de mostrarse
+  for (const old of existing.filter((e) => e.provider === "counter")) await store.patch("indicators", old.id, { enabled: false });
+  const r = await refreshIndicators({ forceOfficial: true });
+  const bad = r.filter((x) => !x.ok && OFFICIAL_COUNTERS.some((c) => c.id === x.id));
+  back("/admin/indicadores", bad.length ? `Contadores restaurados; no se pudo leer el dato oficial: ${bad[0].error}` : "Contadores oficiales restaurados y actualizados", bad.length > 0);
 }

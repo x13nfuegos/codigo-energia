@@ -1,3 +1,4 @@
+import { SE_NO_CONVENCIONAL, SE_SOURCE, SE_SOURCE_URL } from "./official-ids";
 import type { Indicator, MapPoint, Section, Settings, Source } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -7,12 +8,12 @@ export const DEFAULT_SETTINGS: Settings = {
     "Medio digital que sigue minuto a minuto la energía, el petróleo, el gas y la minería en la Argentina y la región.",
   theme: "verde",
   categories: [
-    { slug: "energia", name: "Energía", color: "#3a3f47", text: "#e5e7eb" },
-    { slug: "oil-gas", name: "Oil & Gas", color: "#3b5b9a", text: "#ffffff" },
-    { slug: "mineria", name: "Minería", color: "#f5b400", text: "#ffffff" },
-    { slug: "electricidad", name: "Electricidad", color: "#0e7490", text: "#ffffff" },
-    { slug: "renovables", name: "Renovables", color: "#15803d", text: "#ffffff" },
-    { slug: "economia", name: "Economía", color: "#7c3aed", text: "#ffffff" },
+    { slug: "oil-gas", name: "Oil & Gas", color: "#3b5b9a", text: "#ffffff", parent: "" },
+    { slug: "mineria", name: "Minería", color: "#f5b400", text: "#1a1200", parent: "" },
+    { slug: "energia", name: "Energía", color: "#3a3f47", text: "#e5e7eb", parent: "" },
+    { slug: "electricidad", name: "Electricidad", color: "#0e7490", text: "#ffffff", parent: "energia" },
+    { slug: "renovables", name: "Renovables", color: "#15803d", text: "#ffffff", parent: "energia" },
+    { slug: "economia", name: "Economía", color: "#7c3aed", text: "#ffffff", parent: "" },
   ],
   ticker_enabled: true,
   footer_text: "Energía, oil & gas y minería en tiempo real. Este medio habla el lenguaje de la industria energética con la precisión de un desarrollador.",
@@ -167,40 +168,43 @@ const ind = (i: Omit<Indicator, "order" | "enabled" | "show_in_panel"> & Partial
   ...i,
 });
 
+const official = (id: string, label: string, metric: "petroleo" | "gas" | "pozos", unit: string) =>
+  ind({
+    id, label, group: "Contadores", provider: "se_capitulo_iv", param: SE_NO_CONVENCIONAL, json_path: "vaca muerta", metric,
+    unit, decimals: 0, show_in_ticker: false, source: SE_SOURCE, source_url: SE_SOURCE_URL,
+  });
+
+/** Contadores oficiales (se pueden restaurar desde el back office). */
+export const OFFICIAL_COUNTERS: Indicator[] = [
+  official("barriles-vm", "Petróleo extraído · Vaca Muerta", "petroleo", "bbl"),
+  official("gas-vm", "Gas extraído · Vaca Muerta", "gas", "m³"),
+  official("pozos-vm", "Pozos en producción · Vaca Muerta", "pozos", "pozos"),
+];
+
+const YF = (sym: string, market: string) => ({ source: `${market} vía Yahoo Finance`, source_url: `https://finance.yahoo.com/quote/${encodeURIComponent(sym)}` });
+const DOLARAPI = (who: string) => ({ source: `${who} vía DolarAPI`, source_url: "https://dolarapi.com" });
+
 export const DEFAULT_INDICATORS: Indicator[] = [
-  ind({ id: "wti", label: "WTI", group: "Commodities", provider: "yahoo", param: "CL=F", unit: "USD/bbl", decimals: 2, show_in_ticker: true }),
-  ind({ id: "brent", label: "Brent", group: "Commodities", provider: "yahoo", param: "BZ=F", unit: "USD/bbl", decimals: 2, show_in_ticker: true }),
-  ind({ id: "gas-ng", label: "Gas (NG)", group: "Commodities", provider: "yahoo", param: "NG=F", unit: "USD/MMBtu", decimals: 3, show_in_ticker: true }),
-  ind({ id: "oro", label: "Oro", group: "Commodities", provider: "yahoo", param: "GC=F", unit: "USD/oz", decimals: 0, show_in_ticker: true }),
-  ind({ id: "plata", label: "Plata", group: "Commodities", provider: "yahoo", param: "SI=F", unit: "USD/oz", decimals: 2, show_in_ticker: true }),
-  ind({ id: "cobre", label: "Cobre", group: "Commodities", provider: "yahoo", param: "HG=F", unit: "USD/lb", decimals: 2, show_in_ticker: true }),
-  ind({ id: "litio", label: "Litio (LIT ETF)", group: "Commodities", provider: "yahoo", param: "LIT", unit: "USD", decimals: 2, show_in_ticker: true }),
-  ind({ id: "dolar-oficial", label: "Dólar oficial", group: "Dólar", provider: "dolarapi", param: "oficial", unit: "ARS", decimals: 0, show_in_ticker: true }),
-  ind({ id: "dolar-blue", label: "Dólar blue", group: "Dólar", provider: "dolarapi", param: "blue", unit: "ARS", decimals: 0, show_in_ticker: true }),
-  ind({ id: "dolar-mep", label: "Dólar MEP", group: "Dólar", provider: "dolarapi", param: "bolsa", unit: "ARS", decimals: 0, show_in_ticker: false }),
-  ind({ id: "dolar-ccl", label: "Dólar CCL", group: "Dólar", provider: "dolarapi", param: "contadoconliqui", unit: "ARS", decimals: 0, show_in_ticker: false }),
-  ind({ id: "merval", label: "Merval", group: "Bolsa", provider: "yahoo", param: "^MERV", unit: "pts", decimals: 0, show_in_ticker: true }),
-  ind({ id: "ypf", label: "YPF", group: "Bolsa", provider: "yahoo", param: "YPF", unit: "USD", decimals: 2, show_in_ticker: true }),
-  ind({ id: "vist", label: "Vista", group: "Bolsa", provider: "yahoo", param: "VIST", unit: "USD", decimals: 2, show_in_ticker: true }),
-  ind({ id: "pam", label: "Pampa", group: "Bolsa", provider: "yahoo", param: "PAM", unit: "USD", decimals: 2, show_in_ticker: true }),
-  ind({ id: "tgs", label: "TGS", group: "Bolsa", provider: "yahoo", param: "TGS", unit: "USD", decimals: 2, show_in_ticker: false }),
-  // Contadores en vivo: valor base en counter_start + ritmo diario. Ajustar desde el back office
-  // con los datos oficiales (Secretaría de Energía / SIPG) cuando se publiquen.
-  ind({
-    id: "barriles-vm", label: "Barriles extraídos · Vaca Muerta", group: "Contadores", provider: "counter", param: "",
-    unit: "bbl", decimals: 0, show_in_ticker: false, counter_start: "2025-12-31T00:00:00-03:00", counter_base: 0,
-    counter_rate_per_day: 876000, note: "Ritmo estimado. Actualizar con datos oficiales.",
-  }),
-  ind({
-    id: "gas-inyectado", label: "Gas inyectado", group: "Contadores", provider: "counter", param: "",
-    unit: "m³", decimals: 0, show_in_ticker: false, counter_start: "2025-12-31T00:00:00-03:00", counter_base: 0,
-    counter_rate_per_day: 241400000, note: "Ritmo estimado. Actualizar con datos oficiales.",
-  }),
-  ind({
-    id: "litio-extraido", label: "Litio extraído", group: "Contadores", provider: "counter", param: "",
-    unit: "gramos", decimals: 0, show_in_ticker: false, counter_start: "2025-12-31T00:00:00-03:00", counter_base: 0,
-    counter_rate_per_day: 109300000, note: "Ritmo estimado. Actualizar con datos oficiales.",
-  }),
+  ind({ id: "wti", label: "WTI", group: "Commodities", provider: "yahoo", param: "CL=F", fallback_provider: "stooq", fallback_param: "cl.f", unit: "USD/bbl", decimals: 2, show_in_ticker: true, ...YF("CL=F", "NYMEX") }),
+  ind({ id: "brent", label: "Brent", group: "Commodities", provider: "yahoo", param: "BZ=F", fallback_provider: "stooq", fallback_param: "cb.f", unit: "USD/bbl", decimals: 2, show_in_ticker: true, ...YF("BZ=F", "ICE") }),
+  ind({ id: "gas-ng", label: "Gas (Henry Hub)", group: "Commodities", provider: "yahoo", param: "NG=F", fallback_provider: "stooq", fallback_param: "ng.f", unit: "USD/MMBtu", decimals: 3, show_in_ticker: true, ...YF("NG=F", "NYMEX") }),
+  ind({ id: "oro", label: "Oro", group: "Commodities", provider: "yahoo", param: "GC=F", fallback_provider: "stooq", fallback_param: "gc.f", unit: "USD/oz", decimals: 0, show_in_ticker: true, ...YF("GC=F", "COMEX") }),
+  ind({ id: "plata", label: "Plata", group: "Commodities", provider: "yahoo", param: "SI=F", fallback_provider: "stooq", fallback_param: "si.f", unit: "USD/oz", decimals: 2, show_in_ticker: true, ...YF("SI=F", "COMEX") }),
+  ind({ id: "cobre", label: "Cobre", group: "Commodities", provider: "yahoo", param: "HG=F", fallback_provider: "stooq", fallback_param: "hg.f", unit: "USD/lb", decimals: 2, show_in_ticker: true, ...YF("HG=F", "COMEX") }),
+  ind({ id: "litio", label: "Litio (LIT ETF)", group: "Commodities", provider: "yahoo", param: "LIT", fallback_provider: "stooq", fallback_param: "lit.us", unit: "USD", decimals: 2, show_in_ticker: true, ...YF("LIT", "NYSE Arca"), note: "ETF de empresas del litio; no es el precio del carbonato." }),
+  ind({ id: "dolar-mayorista", label: "Dólar mayorista", group: "Dólar", provider: "bcra", param: "USD", fallback_provider: "dolarapi", fallback_param: "mayorista", unit: "ARS", decimals: 2, show_in_ticker: true, source: "BCRA · Comunicación A 3500", source_url: "https://www.bcra.gob.ar/PublicacionesEstadisticas/Tipo_de_cambio_minorista.asp" }),
+  ind({ id: "dolar-oficial", label: "Dólar oficial (BNA)", group: "Dólar", provider: "dolarapi", param: "oficial", unit: "ARS", decimals: 0, show_in_ticker: true, ...DOLARAPI("Banco Nación") }),
+  ind({ id: "dolar-blue", label: "Dólar blue", group: "Dólar", provider: "dolarapi", param: "blue", unit: "ARS", decimals: 0, show_in_ticker: true, ...DOLARAPI("Mercado informal") }),
+  ind({ id: "dolar-mep", label: "Dólar MEP", group: "Dólar", provider: "dolarapi", param: "bolsa", unit: "ARS", decimals: 0, show_in_ticker: false, ...DOLARAPI("BYMA") }),
+  ind({ id: "dolar-ccl", label: "Dólar CCL", group: "Dólar", provider: "dolarapi", param: "contadoconliqui", unit: "ARS", decimals: 0, show_in_ticker: false, ...DOLARAPI("BYMA") }),
+  ind({ id: "merval", label: "Merval", group: "Bolsa", provider: "yahoo", param: "^MERV", unit: "pts", decimals: 0, show_in_ticker: true, ...YF("^MERV", "BYMA") }),
+  ind({ id: "ypf", label: "YPF", group: "Bolsa", provider: "yahoo", param: "YPF", fallback_provider: "stooq", fallback_param: "ypf.us", unit: "USD", decimals: 2, show_in_ticker: true, ...YF("YPF", "NYSE") }),
+  ind({ id: "vist", label: "Vista", group: "Bolsa", provider: "yahoo", param: "VIST", fallback_provider: "stooq", fallback_param: "vist.us", unit: "USD", decimals: 2, show_in_ticker: true, ...YF("VIST", "NYSE") }),
+  ind({ id: "pam", label: "Pampa", group: "Bolsa", provider: "yahoo", param: "PAM", fallback_provider: "stooq", fallback_param: "pam.us", unit: "USD", decimals: 2, show_in_ticker: true, ...YF("PAM", "NYSE") }),
+  ind({ id: "tgs", label: "TGS", group: "Bolsa", provider: "yahoo", param: "TGS", fallback_provider: "stooq", fallback_param: "tgs.us", unit: "USD", decimals: 2, show_in_ticker: false, ...YF("TGS", "NYSE") }),
+  // Contadores con datos oficiales de producción (Secretaría de Energía, Capítulo IV — no convencional).
+  // Suma oficial del año hasta el último mes publicado y, desde ahí, estimación al ritmo de ese mes.
+  ...OFFICIAL_COUNTERS,
 ];
 
 let sOrder = 0;
@@ -212,17 +216,15 @@ const sec = (s: Omit<Section, "order" | "enabled" | "category"> & Partial<Sectio
 });
 
 export const DEFAULT_SECTIONS: Section[] = [
-  sec({ id: "newsroom", type: "newsroom", title: "Redacción · en vivo", limit: 8 }),
   sec({ id: "hero", type: "hero", title: "Principal", limit: 1 }),
   sec({ id: "counters", type: "counters", title: "Contadores", limit: 3 }),
   sec({ id: "ultimas", type: "list", title: "Últimas noticias", limit: 6, offset: 1 }),
-  sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
-  sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 2 }),
-  sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
-  sec({ id: "mineria", type: "grid", title: "Minería", category: "mineria", limit: 4, columns: 2 }),
   sec({ id: "mapa", type: "map", title: "El mapa de la energía", limit: 0 }),
-  sec({ id: "energia", type: "list", title: "Energía", category: "energia", limit: 5 }),
-  sec({ id: "renovables", type: "grid", title: "Renovables", category: "renovables", limit: 4, columns: 2 }),
+  sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
+  sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
+  sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 3 }),
+  sec({ id: "mineria", type: "grid", title: "Minería", category: "mineria", limit: 4, columns: 2 }),
+  sec({ id: "energia", type: "grid", title: "Energía", category: "energia", limit: 6, columns: 3 }),
   sec({ id: "mercados", type: "indicators", title: "Mercados", limit: 0 }),
 ];
 
