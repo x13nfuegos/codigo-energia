@@ -58,6 +58,8 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
   const [active, setActive] = useState<Set<MapPointType>>(new Set(types));
   const [focusId, setFocusId] = useState<string | null>(focus ?? null);
   const markers = useRef(new Map<string, L.Marker>());
+  // el mapa base acompaña a la variante clara u oscura de la identidad
+  const [light] = useState(() => typeof document !== "undefined" && document.documentElement.dataset.theme === "light");
 
   const since = Date.now() - days * 86400000;
   const visibleNews = useMemo(() => news.filter((n) => new Date(n.published_at).getTime() >= since), [news, since]);
@@ -86,7 +88,7 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
         </button>
         <div className="flex overflow-hidden rounded-full border border-line text-sm">
           {PERIODS.map((p) => (
-            <button key={p.days} onClick={() => setDays(p.days)} className={`px-3 py-1 ${days === p.days ? "bg-accent text-white" : "text-muted hover:text-ink"}`}>
+            <button key={p.days} onClick={() => setDays(p.days)} className={`px-3 py-1 ${days === p.days ? "bg-accent text-accent-ink" : "text-muted hover:text-ink"}`}>
               {p.label}
             </button>
           ))}
@@ -106,7 +108,7 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
           <MapContainer bounds={bounds} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a> · Capas: <a href="https://sig.energia.gob.ar">SIG Secretaría de Energía</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              url={`https://{s}.basemaps.cartocdn.com/${light ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png`}
             />
             {enabledLayers.length > 0 && (
               <LayersControl position="topright">
@@ -124,7 +126,7 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
                   key={p.id}
                   center={[p.lat, p.lng]}
                   radius={6}
-                  pathOptions={{ color: "#0a0a0a", weight: 1.5, fillColor: POINT_TYPES[p.type]?.color ?? "#999", fillOpacity: 0.95 }}
+                  pathOptions={{ color: light ? "#ffffff" : "#0b0e14", weight: 1.5, fillColor: POINT_TYPES[p.type]?.color ?? "#999", fillOpacity: 0.95 }}
                 >
                   <Popup>
                     <strong>{p.name}</strong>

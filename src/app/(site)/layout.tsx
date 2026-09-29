@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { Header } from "@/components/Header";
+import { Logo, Tagline } from "@/components/Logo";
 import { Ticker } from "@/components/Ticker";
 import { maybeRefresh } from "@/lib/jobs";
 import { getIndicators, getSettings } from "@/lib/site";
@@ -19,8 +20,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <footer className="mt-16 border-t border-line">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm text-muted md:grid-cols-3 md:px-6">
           <div>
-            <div className="text-lg font-bold text-ink">{settings.site_name}</div>
-            <p className="mt-2">{settings.footer_text}</p>
+            <Logo className="text-xl" />
+            <Tagline className="mt-2 block text-xs" />
+            <p className="mt-4">{settings.footer_text}</p>
           </div>
           <nav className="flex flex-col gap-2">
             {settings.categories.map((c) => (
@@ -41,9 +43,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             ))}
           </nav>
         </div>
-        <p className="pb-8 text-center font-mono text-xs text-dim">
+        <p className="px-4 pb-6 text-center font-mono text-xs text-dim">
           Las notas enlazan a sus medios de origen. Cotizaciones con demora; no constituyen recomendación de inversión.
         </p>
+        <div className="flex items-center gap-5 bg-status px-4 py-1.5 font-mono text-[0.7rem] text-dim md:px-6">
+          <span>⎇ main</span>
+          <span className="hidden sm:inline">CE-001.js</span>
+          <span className="ml-auto">UTF-8 · 50Hz / 220V · v1.0.0</span>
+        </div>
       </footer>
     </>
   );

@@ -66,7 +66,7 @@ export function GridCard({ a, cat }: P) {
 export function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
     <div className="mb-6 flex items-center gap-3 border-b-2 border-line pb-3">
-      <span className="h-8 w-2 rounded-sm bg-[#3a3f47]" />
+      <span className="h-8 w-2 rounded-sm bg-accent" />
       <h2 className="text-2xl font-extrabold tracking-tight md:text-3xl">{title}</h2>
       {href && (
         <Link href={href} className="ml-auto text-sm text-muted hover:text-ink">

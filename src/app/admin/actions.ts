@@ -10,6 +10,7 @@ import { runDailyBrief } from "@/lib/jobs";
 import * as cheerio from "cheerio";
 import { articleId, fetchSource, fetchText, geotagArticles, runScrape, type RawItem } from "@/lib/scraper";
 import { getStore } from "@/lib/store";
+import { isTheme, type ThemeId } from "@/lib/themes";
 import type { Article, Category, MapLayer, Settings, Source, TableName, Tables } from "@/lib/types";
 
 async function requireAdmin() {
@@ -256,7 +257,7 @@ export async function saveSettings(fd: FormData) {
       site_name: str("site_name") || "Código Energía",
       tagline: str("tagline"),
       description: str("description"),
-      accent: str("accent") || "#e5484d",
+      theme: isTheme(str("theme")) ? (str("theme") as ThemeId) : "verde",
       footer_text: str("footer_text"),
       ticker_enabled: fd.get("ticker_enabled") === "on",
       scrape_every_min: num("scrape_every_min", 30),

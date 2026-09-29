@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { logout } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,10 @@ const NAV = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="md:flex">
-      <aside className="border-b border-line bg-[#0f0f0f] md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-r md:border-b-0">
+      <aside className="border-b border-line bg-surface md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <div className="px-5 py-5">
-          <Link href="/" className="font-bold">Código Energía</Link>
-          <p className="font-mono text-xs text-accent">&lt;backoffice/&gt;</p>
+          <Link href="/"><Logo className="text-base" /></Link>
+          <p className="mt-1 font-mono text-xs text-dim">// backoffice</p>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 text-sm md:flex-col md:overflow-visible">
           {NAV.map(([href, label]) => (

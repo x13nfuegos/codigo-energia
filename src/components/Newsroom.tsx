@@ -27,7 +27,7 @@ export function Newsroom({ items, title }: { items: Item[]; title: string }) {
   if (!item) return null;
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface font-mono">
-      <div className="flex items-center gap-2 border-b border-line bg-[#111] px-4 py-3 text-sm uppercase tracking-[0.15em] text-muted">
+      <div className="flex items-center gap-2 border-b border-line bg-surface-2 px-4 py-3 text-sm uppercase tracking-[0.15em] text-muted">
         <span className="h-3.5 w-3.5 rounded-full bg-[#ef4444]" />
         <span className="h-3.5 w-3.5 rounded-full bg-[#eab308]" />
         <span className="h-3.5 w-3.5 rounded-full bg-[#22c55e]" />

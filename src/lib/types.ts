@@ -190,7 +190,8 @@ export interface Settings {
   site_name: string;
   tagline: string;
   description: string;
-  accent: string;
+  /** variante de la identidad: verde | cyan | ember | rose | light */
+  theme: import("./themes").ThemeId;
   categories: Category[];
   ticker_enabled: boolean;
   footer_text: string;

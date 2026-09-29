@@ -2,10 +2,10 @@ import type { Indicator, MapPoint, Section, Settings, Source } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
   site_name: "Código Energía",
-  tagline: "Energía, oil & gas y minería en tiempo real",
+  tagline: "noticias del subsuelo · real time · sin fricción",
   description:
     "Medio digital que sigue minuto a minuto la energía, el petróleo, el gas y la minería en la Argentina y la región.",
-  accent: "#e5484d",
+  theme: "verde",
   categories: [
     { slug: "energia", name: "Energía", color: "#3a3f47", text: "#e5e7eb" },
     { slug: "oil-gas", name: "Oil & Gas", color: "#3b5b9a", text: "#ffffff" },
@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
     { slug: "economia", name: "Economía", color: "#7c3aed", text: "#ffffff" },
   ],
   ticker_enabled: true,
-  footer_text: "Código Energía — información sobre energía, oil & gas y minería.",
+  footer_text: "Energía, oil & gas y minería en tiempo real. Este medio habla el lenguaje de la industria energética con la precisión de un desarrollador.",
   social: [],
   scrape_every_min: 30,
   indicators_every_min: 15,

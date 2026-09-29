@@ -62,7 +62,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
           href={a.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 font-semibold text-white hover:brightness-110"
+          className="mt-8 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-3 font-semibold text-accent-ink hover:brightness-110"
         >
           Leer la nota completa en {a.source_name || hostname(a.url)} ↗
         </a>

@@ -16,10 +16,10 @@ export function Img({ src, alt, cat, className = "" }: { src?: string | null; al
     return (
       <div
         className={`flex items-end overflow-hidden ${className}`}
-        style={{ background: `linear-gradient(135deg, ${cat.color} 0%, #111 85%)` }}
+        style={{ background: `linear-gradient(135deg, ${cat.color} 0%, var(--color-surface-2) 85%)` }}
         aria-hidden
       >
-        <span className="p-3 font-mono text-xs uppercase tracking-[0.2em] text-white/60">&lt;{cat.slug}/&gt;</span>
+        <span className="p-3 font-mono text-xs uppercase tracking-[0.2em] text-ink/60">&lt;{cat.slug}/&gt;</span>
       </div>
     );
   }

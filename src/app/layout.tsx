@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { getSettings } from "@/lib/site";
+import { THEMES, isTheme } from "@/lib/themes";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,21 +11,32 @@ export async function generateMetadata(): Promise<Metadata> {
     description: s.description,
     openGraph: { siteName: s.site_name, locale: "es_AR", type: "website" },
     alternates: { types: { "application/rss+xml": "/feed.xml" } },
+    icons: { icon: { url: "/brand-icon", type: "image/svg+xml" } },
   };
 }
 
-export const viewport: Viewport = { themeColor: "#0a0a0a" };
+export async function generateViewport(): Promise<Viewport> {
+  const s = await getSettings();
+  return { themeColor: THEMES[isTheme(s.theme) ? s.theme : "verde"].bg };
+}
+
+// Permite comparar variantes sin tocar la configuración: /?tema=cyan (queda activa durante la visita; ?tema=off vuelve a la oficial).
+const themePreview = `(function(){try{var k="ce-tema",q=new URLSearchParams(location.search).get("tema"),v=${JSON.stringify(Object.keys(THEMES))};
+if(q==="off"){sessionStorage.removeItem(k)}else if(q&&v.indexOf(q)>=0){sessionStorage.setItem(k,q)}
+var t=sessionStorage.getItem(k);if(t&&v.indexOf(t)>=0)document.documentElement.dataset.theme=t}catch(e){}})()`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const s = await getSettings();
+  const theme = isTheme(s.theme) ? s.theme : "verde";
   return (
-    <html lang="es-AR" style={{ ["--accent" as string]: s.accent }}>
+    <html lang="es-AR" data-theme={theme} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themePreview }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
         />
       </head>
       <body className="min-h-screen">{children}</body>

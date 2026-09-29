@@ -1,5 +1,7 @@
 import { Flash, type FlashParams } from "@/components/admin/Flash";
 import { Submit } from "@/components/admin/Submit";
+import { Logo } from "@/components/Logo";
+import { THEMES, type ThemeId } from "@/lib/themes";
 import { getStore } from "@/lib/store";
 import { saveSettings } from "../../actions";
 
@@ -23,6 +25,30 @@ export default async function Ajustes({ searchParams }: { searchParams: FlashPar
       <h1 className="mb-6 text-2xl font-bold">Ajustes</h1>
       <Flash {...(await searchParams)} />
       <form action={saveSettings} className="space-y-8">
+        <fieldset className="card p-5">
+          <legend className="px-2 font-bold">Variante de identidad</legend>
+          <p className="mb-4 text-sm text-muted">
+            Las cinco propuestas de la identidad visual. Para mostrarlas sin cambiar el sitio, compartí los links de vista previa
+            (la variante queda activa durante esa visita; <code>?tema=off</code> vuelve a la oficial).
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(Object.keys(THEMES) as ThemeId[]).map((id) => (
+              <label key={id} className="cursor-pointer">
+                <input type="radio" name="theme" value={id} defaultChecked={s.theme === id} className="peer sr-only" />
+                <div data-theme={id} className="rounded-lg border-2 border-transparent bg-bg p-4 peer-checked:border-accent peer-focus-visible:border-accent" style={{ outline: "1px solid var(--color-line)" }}>
+                  <Logo className="text-base" />
+                  <div className="mt-2 font-mono text-[0.65rem] text-accent-soft">noticias del subsuelo</div>
+                  <div className="mt-3 flex items-center gap-2 font-mono text-xs">
+                    <span className="font-bold text-accent">{THEMES[id].label}</span>
+                    <a href={`/?tema=${id}`} target="_blank" className="ml-auto text-dim underline hover:text-ink">vista previa ↗</a>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">{THEMES[id].description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <fieldset className="card grid gap-4 p-5 md:grid-cols-2">
           <legend className="px-2 font-bold">Identidad</legend>
           {text("site_name", "Nombre del medio")}
@@ -31,10 +57,7 @@ export default async function Ajustes({ searchParams }: { searchParams: FlashPar
             Descripción (SEO)
             <textarea name="description" defaultValue={s.description} rows={2} className="input" />
           </label>
-          <label className="field">
-            Color de acento
-            <input type="color" name="accent" defaultValue={s.accent} className="h-10 w-20 rounded border border-line bg-transparent" />
-          </label>
+
           {text("footer_text", "Texto del pie")}
           <div className="md:col-span-2">{check("ticker_enabled", "Mostrar la cinta de cotizaciones")}</div>
         </fieldset>

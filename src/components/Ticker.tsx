@@ -21,7 +21,7 @@ export function Ticker({ items }: { items: Indicator[] }) {
   const list = items.filter((i) => i.show_in_ticker && i.provider !== "counter");
   if (!list.length) return null;
   return (
-    <div className="ticker overflow-hidden border-y border-line bg-[#111] font-mono text-sm" aria-label="Cotizaciones">
+    <div className="ticker overflow-hidden border-y border-line bg-surface font-mono text-sm" aria-label="Cotizaciones">
       <div className="ticker-track flex w-max py-2.5" style={{ ["--ticker-duration" as string]: `${Math.max(30, list.length * 6)}s` }}>
         {[0, 1].map((k) => (
           <div key={k} className="flex" aria-hidden={k === 1}>
