@@ -18,6 +18,7 @@ Stack: Next.js 15 (App Router) + Tailwind 4 + Supabase (Postgres y Storage) + Le
 ## Correr en local
 
 ```bash
+git clone https://github.com/x13nfuegos/codigo-energia.git
 cd codigo-energia
 npm install
 cp .env.example .env.local   # completar al menos ADMIN_PASSWORD, ADMIN_SECRET y CRON_SECRET
@@ -31,7 +32,7 @@ dispara el scrapeo y la actualización de indicadores en segundo plano.
 
 1. **Supabase**: crear un proyecto, abrir *SQL Editor* y ejecutar `supabase/schema.sql` (crea las tablas y el bucket público `media`).
    Copiar `Project URL` y la `service_role key` (Settings → API).
-2. **Vercel**: *Add New Project* → importar este repositorio → **Root Directory: `codigo-energia`**. Cargar las variables de
+2. **Vercel**: *Add New Project* → importar este repositorio (sin cambiar Root Directory). Cargar las variables de
    `.env.example` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SECRET`, `CRON_SECRET`,
    `NEXT_PUBLIC_SITE_URL=https://codigoenergia.ar` y, para el resumen, `ANTHROPIC_API_KEY`, `ELEVENLABS_*`, `HEYGEN_*`). Deploy.
    La primera carga llena la base con la configuración inicial (fuentes, indicadores, portada y mapa).
