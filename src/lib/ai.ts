@@ -76,8 +76,9 @@ export async function generateBrief(date = yesterdayAR()): Promise<DailyBrief> {
     "Agrupá temas repetidos y ordená por relevancia para el sector energético argentino. " +
     "El guion es para una locutora o un avatar: frases cortas, comenzá con un saludo y la fecha, cerrá con \"Esto fue el resumen de Código Energía\".";
   type BriefOut = Omit<DailyBrief, "id" | "date" | "created_at">;
-  // con clave de Anthropic se usa Claude (una vez por día); si no, la IA económica (Gemini)
-  const out = process.env.ANTHROPIC_API_KEY
+  // con clave de Anthropic se usa Claude (una vez por día); si no, la IA económica (Gemini).
+  // Si la IA no está disponible (sin cuota, caída), se arma igual un resumen con los titulares para no quedarse sin resumen ni audio.
+  const viaAi = async (): Promise<BriefOut> => process.env.ANTHROPIC_API_KEY
     ? await askJson<BriefOut>(settings.brief_prompt, task, BRIEF_SCHEMA, "medium")
     : await cheapJson<BriefOut>(
         `${settings.brief_prompt}\nRespondé solo con JSON con estas claves: title (titular, máx. 90 caracteres), bullets (5 a 8 oraciones), ` +
@@ -86,6 +87,12 @@ export async function generateBrief(date = yesterdayAR()): Promise<DailyBrief> {
         task,
         4000,
       );
+  let out: BriefOut;
+  try {
+    out = await viaAi();
+  } catch {
+    out = headlinesBrief(date, articles, catName);
+  }
   out.bullets ??= [];
   out.article_ids ??= [];
 
@@ -107,6 +114,34 @@ export async function generateBrief(date = yesterdayAR()): Promise<DailyBrief> {
   };
   await store.upsert("briefs", [brief]);
   return brief;
+}
+
+/** Fecha para leer en voz alta: "martes 29 de septiembre". */
+function spokenDate(date: string): string {
+  return new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(`${date}T12:00:00-03:00`)).replace(",", "");
+}
+
+/** Resumen sin IA: las notas más relevantes del día agrupadas por sección, con guion para la locución. */
+export function headlinesBrief(date: string, articles: Article[], catName: Record<string, string>): Omit<DailyBrief, "id" | "date" | "created_at"> {
+  const ranked = [...articles].sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || (b.views ?? 0) - (a.views ?? 0)).slice(0, 8);
+  const byCat = new Map<string, Article[]>();
+  for (const a of ranked) byCat.set(a.category, [...(byCat.get(a.category) ?? []), a]);
+  const clean = (t: string) => t.replace(/\s+[-|–]\s+[^-|–]+$/, "").trim();
+  const text = [...byCat.entries()]
+    .map(([c, list]) => `${catName[c] ?? c}: ${list.map((a) => `${clean(a.title)}${a.summary ? `. ${truncate(a.summary, 200)}` : ""}`).join(" ")}`)
+    .join("\n\n");
+  const script = [
+    `Hola, este es el resumen de Código Energía del ${spokenDate(date)}.`,
+    ...[...byCat.entries()].map(([c, list]) => `En ${(catName[c] ?? c).replace("&", "y")}: ${list.map((a) => clean(a.title).replace(/[“”"]/g, "")).join(". ")}.`),
+    "Esto fue el resumen de Código Energía. Todas las notas completas, en codigoenergia punto ar.",
+  ].join("\n\n");
+  return {
+    title: `Lo que pasó en energía el ${spokenDate(date)}`,
+    bullets: ranked.slice(0, 6).map((a) => clean(a.title)),
+    text,
+    script,
+    article_ids: ranked.map((a) => a.id),
+  };
 }
 
 export function extractArticleText(html: string): string {
@@ -149,6 +184,7 @@ export async function rewriteArticle(a: Article): Promise<Pick<Article, "summary
       'Respondé solo con JSON: {"summary": "copete de 1 o 2 oraciones, máx. 250 caracteres", "body": "nota-resumen de 4 a 6 párrafos separados por una línea en blanco (entre 300 y 400 palabras): qué pasó, quiénes intervienen, cifras y datos clave, contexto para el sector energético argentino y próximos pasos si los hay; mencioná al medio de origen como fuente"}.',
     `Medio de origen: ${a.source_name ?? "desconocido"}\nTítulo: ${a.title}\nBajada: ${a.summary}\n\nTexto original:\n${original || "(no disponible)"}`,
     1800,
+    "low",
   );
   if (!out.body) throw new Error("La IA devolvió un resumen vacío");
   return { summary: out.summary, body: out.body };

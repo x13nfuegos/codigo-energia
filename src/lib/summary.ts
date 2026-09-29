@@ -49,9 +49,14 @@ export async function ensureArticleSummary(a: Article): Promise<void> {
     }
     const tags = (a.tags ?? []).filter((t) => !t.startsWith("resumen:"));
     if (cheapProvider()) {
-      const r = await rewriteArticle({ ...a, url });
-      await store.patch("articles", a.id, { body: r.body, summary: a.summary || r.summary, tags: [...tags, TAG_AI] });
-      return;
+      try {
+        const r = await rewriteArticle({ ...a, url });
+        await store.patch("articles", a.id, { body: r.body, summary: a.summary || r.summary, tags: [...tags, TAG_AI] });
+        return;
+      } catch {
+        // IA sin cuota o caída: mientras tanto se muestra un extracto (se reemplaza por el resumen cuando vuelva la IA)
+        if (a.body) return;
+      }
     }
     if (!url || isGoogleNewsUrl(url)) return;
     const text = extractArticleText(await fetchText(url, 12000));

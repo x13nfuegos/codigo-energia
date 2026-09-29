@@ -1,5 +1,5 @@
 import { bingNewsUrl, googleNewsUrl, fetchText } from "./scraper";
-import { DEFAULT_GEMINI, cheapJson, cheapProvider } from "./llm";
+import { DEFAULT_GEMINI, cheapJson, cheapProvider, geminiModels, quotaStatus } from "./llm";
 import { migrationError } from "./migrations";
 import { getStore, storeWarning } from "./store";
 import { supabaseEnv } from "./store/env";
@@ -69,6 +69,14 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       "IA (prueba real)",
       async () => {
         if (!cheapProvider()) return "sin IA configurada";
+        if (cheapProvider() === "gemini") {
+          // listar modelos no gasta cuota (la prueba anterior consumía una consulta cada vez que se abría esta página)
+          const models = await geminiModels();
+          const q = quotaStatus();
+          const info = `clave OK · ${models.length} modelos Flash disponibles (${models.slice(0, 4).join(", ")})`;
+          if (q.length) throw new Error(`${q.join(" · ")} — el plan gratis de Gemini permite pocas consultas por día; activá la facturación en aistudio.google.com para no quedarte sin IA · ${info}`);
+          return info;
+        }
         const r = await cheapJson<{ ok: boolean }>("Respondé solo JSON.", 'Devolvé {"ok": true}', 50);
         return r.ok ? `${cheapProvider()} responde OK` : "respuesta inesperada";
       },

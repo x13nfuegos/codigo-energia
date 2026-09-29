@@ -73,6 +73,7 @@ export async function buildCaption(a: Article, ig: InstagramSettings): Promise<s
           'Respondé solo JSON: {"text": "2 a 4 oraciones que cuenten la noticia con los datos clave, sin inventar nada, sin emojis de más (uno o dos como máximo)", "hashtags": ["3 a 5 hashtags específicos del tema, sin espacios"]}.',
         `Título: ${a.title}\nBajada: ${a.summary}\n${a.body ? `Resumen: ${a.body.slice(0, 2500)}` : ""}`,
         600,
+        "low",
       );
       if (out.text?.trim()) body = out.text.trim();
       tags = (out.hashtags ?? []).map((h) => `#${h.replace(/^#/, "").replace(/\s+/g, "")}`).join(" ");
