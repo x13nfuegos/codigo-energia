@@ -291,9 +291,12 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
       .map((r, i) => ({ ...r, id: ids[i] }))
       .filter((r) => !existing.has(r.id) && !knownTitles.has(titleKey(r.title)));
 
-    if (source.fetch_meta || source.type === "google_news") {
+    // Primero se guardan las notas (rápido); las de Google News se completan después con enrichMissing,
+    // así un scrapeo lento nunca deja la portada vacía. En feeds directos se busca la imagen con tope de tiempo.
+    if (source.fetch_meta && source.type !== "google_news") {
+      const deadline = Date.now() + 20000;
       await mapLimit(fresh, 4, async (it) => {
-        if (it.image && it.summary && it.date && !isGoogleNewsUrl(it.url)) return;
+        if ((it.image && it.summary && it.date) || Date.now() > deadline) return;
         try {
           await enrichItem(it);
         } catch {
@@ -311,7 +314,7 @@ export async function scrapeSource(source: Source, knownTitles: Set<string>, geo
         title: it.title,
         summary: it.summary,
         image: cleanImage(it.image),
-        enriched: true,
+        enriched: !!cleanImage(it.image) || !isGoogleNewsUrl(it.url),
         source_id: source.id,
         source_name: it.source_name || source.name.replace(/^Google News · /, ""),
         category: source.category === "auto" ? classify(`${it.title} ${it.summary}`, "auto") : source.category,
@@ -364,7 +367,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     }
   }
 
-  if (!onlySourceId) await enrichMissing(25).catch(() => undefined);
+  if (!onlySourceId) await enrichMissing(40, 60000).catch(() => undefined);
 
   let removed = 0;
   if (!onlySourceId && settings.retention_days > 0) {
@@ -392,11 +395,13 @@ export async function geotagArticles(force = false, limit = 500): Promise<{ chec
 }
 
 /** Busca imagen (y la URL real) para notas recientes que quedaron sin foto. */
-export async function enrichMissing(limit = 25): Promise<number> {
+export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<number> {
   const store = await getStore();
+  const deadline = Date.now() + budgetMs;
   const pending = (await store.queryArticles({ status: "all", limit: 200 })).filter((a) => !a.image && !a.enriched).slice(0, limit);
   let fixed = 0;
   await mapLimit(pending, 4, async (a) => {
+    if (Date.now() > deadline) return;
     const it: RawItem = { title: a.title, url: a.url, summary: a.summary, image: null, date: a.published_at };
     try {
       await enrichItem(it);

@@ -105,13 +105,14 @@ async function monthlyViaCsv(resource: string, formation: string, fromYear: numb
     .sort((a, b) => a.anio - b.anio || a.mes - b.mes);
 }
 
-export async function monthlyProduction(resource = SE_NO_CONVENCIONAL, formation = "vaca muerta"): Promise<MonthRow[]> {
+export async function monthlyProduction(resource = SE_NO_CONVENCIONAL, formation = "vaca muerta", fast = false): Promise<MonthRow[]> {
   const fromYear = Number(new Intl.DateTimeFormat("en", { timeZone: TZ, year: "numeric" }).format(new Date())) - 1;
   try {
     const rows = await monthlyViaSql(resource, formation, fromYear);
     if (rows.length) return rows;
-  } catch {
-    /* el portal puede tener deshabilitado el SQL: se usa el CSV */
+  } catch (e) {
+    // el portal puede tener deshabilitado el SQL: se usa el CSV (lento, solo desde el cron o el back office)
+    if (fast) throw e;
   }
   return monthlyViaCsv(resource, formation, fromYear);
 }

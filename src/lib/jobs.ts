@@ -56,7 +56,7 @@ export async function maybeRefresh() {
     const s = await store.getSettings();
     const ago = (iso?: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity);
     const tasks: Promise<unknown>[] = [];
-    if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(refreshIndicators());
+    if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(refreshIndicators({ fast: true }));
     if (ago(s.last_scrape_at) >= s.scrape_every_min) tasks.push(runScrape());
     await Promise.allSettled(tasks);
 

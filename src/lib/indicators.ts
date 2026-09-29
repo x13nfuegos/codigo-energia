@@ -78,11 +78,11 @@ async function quote(provider: Indicator["provider"], param: string, jsonPath?: 
 
 type SeriesCache = Map<string, Promise<MonthRow[]>>;
 
-export async function fetchIndicator(ind: Indicator, series: SeriesCache = new Map()): Promise<Partial<Indicator>> {
+export async function fetchIndicator(ind: Indicator, series: SeriesCache = new Map(), fast = false): Promise<Partial<Indicator>> {
   if (ind.provider === "manual" || ind.provider === "counter") return {};
   if (ind.provider === "se_capitulo_iv") {
     const key = `${ind.param}|${ind.json_path}`;
-    if (!series.has(key)) series.set(key, monthlyProduction(ind.param || undefined, ind.json_path || "vaca muerta"));
+    if (!series.has(key)) series.set(key, monthlyProduction(ind.param || undefined, ind.json_path || "vaca muerta", fast));
     return counterFromMonthly(await series.get(key)!, ind.metric ?? "petroleo");
   }
   let q: Quote;
@@ -111,7 +111,7 @@ export async function fetchIndicator(ind: Indicator, series: SeriesCache = new M
 /** Las series oficiales mensuales se consultan como mucho dos veces por día. */
 const OFFICIAL_EVERY_MS = 12 * 3600000;
 
-export async function refreshIndicators(opts: { forceOfficial?: boolean } = {}): Promise<{ id: string; ok: boolean; error?: string }[]> {
+export async function refreshIndicators(opts: { forceOfficial?: boolean; fast?: boolean } = {}): Promise<{ id: string; ok: boolean; error?: string }[]> {
   const store = await getStore();
   await store.saveSettings({ last_indicators_at: new Date().toISOString() });
   const series: SeriesCache = new Map();
@@ -123,7 +123,7 @@ export async function refreshIndicators(opts: { forceOfficial?: boolean } = {}):
   return Promise.all(
     list.map(async (ind) => {
       try {
-        const patch = await fetchIndicator(ind, series);
+        const patch = await fetchIndicator(ind, series, opts.fast);
         if (Object.keys(patch).length) await store.patch("indicators", ind.id, patch);
         return { id: ind.id, ok: true };
       } catch (e) {
