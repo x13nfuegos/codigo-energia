@@ -19,10 +19,17 @@ export interface Store {
   saveSettings(patch: Partial<Settings>): Promise<Settings>;
 }
 
-const g = globalThis as { __ceStore?: Promise<Store> };
+const g = globalThis as { __ceStore?: Promise<Store>; __ceStoreAt?: number };
+const RETRY_SUPABASE_MS = 5 * 60000;
 
 export function getStore(): Promise<Store> {
-  return (g.__ceStore ??= createStore());
+  // si se cayó a almacenamiento temporal, se reintenta Supabase cada 5 minutos (no en cada visita)
+  if (g.__ceStore && storeWarning && Date.now() - (g.__ceStoreAt ?? 0) > RETRY_SUPABASE_MS) g.__ceStore = undefined;
+  if (!g.__ceStore) {
+    g.__ceStoreAt = Date.now();
+    g.__ceStore = createStore();
+  }
+  return g.__ceStore;
 }
 
 /** Si Supabase está configurado pero no se puede usar, se informa en el tablero del back office. */
@@ -41,7 +48,6 @@ async function createStore(): Promise<Store> {
       // sin reintento inmediato: se usa el archivo local y en la próxima instancia se vuelve a probar
       storeWarning = `Supabase configurado pero no disponible (${e instanceof Error ? e.message : String(e)}). Se está usando almacenamiento temporal.`;
       console.error(storeWarning);
-      g.__ceStore = undefined;
     }
   }
   const { JsonStore } = await import("./json");

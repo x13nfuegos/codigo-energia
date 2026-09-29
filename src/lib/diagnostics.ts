@@ -1,0 +1,71 @@
+import { googleNewsUrl, fetchText } from "./scraper";
+import { getStore, storeWarning } from "./store";
+import { supabaseEnv } from "./store/env";
+
+export type Check = { name: string; ok: boolean; ms: number; detail: string };
+
+async function timed(name: string, fn: () => Promise<string>, timeoutMs = 20000): Promise<Check> {
+  const t = Date.now();
+  try {
+    const detail = await Promise.race([fn(), new Promise<string>((_, rej) => setTimeout(() => rej(new Error(`sin respuesta en ${timeoutMs / 1000}s`)), timeoutMs))]);
+    return { name, ok: true, ms: Date.now() - t, detail };
+  } catch (e) {
+    return { name, ok: false, ms: Date.now() - t, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Qué tipo de clave se configuró (sin mostrarla). */
+function keyKind(key: string): string {
+  if (!key) return "falta";
+  if (key.startsWith("sb_secret_")) return "secreta (sb_secret_…) ✓";
+  if (key.startsWith("sb_publishable_")) return "PUBLICABLE: no sirve, usá la secreta / service_role";
+  try {
+    const role = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString()).role;
+    return role === "service_role" ? "service_role ✓" : `rol "${role}": no sirve, usá la service_role`;
+  } catch {
+    return "formato desconocido";
+  }
+}
+
+export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<string, string> }> {
+  const env = supabaseEnv();
+  const envInfo = {
+    "Base de datos": env.ok ? "Supabase" : "archivo temporal (sin Supabase)",
+    "URL de Supabase": env.url ? env.url.replace(/^https?:\/\//, "") : "falta",
+    "Clave de Supabase": keyKind(env.key),
+    "Postgres (crear tablas)": env.pg ? "configurado" : "no configurado",
+    "Aviso del almacenamiento": storeWarning ?? "ninguno",
+  };
+  const store = await getStore();
+  const checks = await Promise.all([
+    timed("Base: leer notas, fuentes e indicadores", async () => {
+      const [a, s, i] = await Promise.all([store.countArticles({ status: "all" }), store.list("sources"), store.list("indicators")]);
+      return `${store.kind}: ${a} notas · ${s.length} fuentes (${s.filter((x) => x.enabled).length} activas) · ${i.length} indicadores (${i.filter((x) => x.value != null).length} con valor)`;
+    }),
+    timed("Base: escribir", async () => {
+      const s = await store.getSettings();
+      await store.saveSettings({ tagline: s.tagline });
+      return "escritura OK";
+    }),
+    timed("Yahoo Finance (WTI)", async () => {
+      const j = JSON.parse(await fetchText("https://query1.finance.yahoo.com/v8/finance/chart/CL%3DF?range=5d&interval=1d", 15000));
+      return `WTI ${j.chart?.result?.[0]?.meta?.regularMarketPrice ?? "sin dato"}`;
+    }),
+    timed("Stooq (respaldo)", async () => (await fetchText("https://stooq.com/q/l/?s=cl.f&f=sd2t2ohlcv&h&e=csv", 15000)).split("\n")[1] ?? "vacío"),
+    timed("DolarAPI", async () => `oficial ${JSON.parse(await fetchText("https://dolarapi.com/v1/dolares/oficial", 15000)).venta}`),
+    timed("BCRA", async () => {
+      const t = await fetchText("https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones", 15000);
+      return t.includes("USD") ? "responde con USD" : t.slice(0, 120);
+    }),
+    timed("Google News (feed)", async () => {
+      const x = await fetchText(googleNewsUrl("Vaca Muerta"), 15000);
+      return `${(x.match(/<item>/g) ?? []).length} notas en el feed`;
+    }),
+    timed("Secretaría de Energía (datos.energia.gob.ar)", async () => {
+      const t = await fetchText("https://datos.energia.gob.ar/api/3/action/resource_show?id=b5b58cdc-9e07-41f9-b392-fb9ec68b0725", 20000);
+      const j = JSON.parse(t);
+      return j.success ? `recurso OK · datastore ${j.result?.datastore_active ? "activo" : "inactivo"}` : "respuesta sin éxito";
+    }),
+  ]);
+  return { checks, env: envInfo };
+}

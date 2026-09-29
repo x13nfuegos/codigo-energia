@@ -34,16 +34,25 @@ export class SupabaseStore implements Store {
     await this.ensureSeed();
   }
 
-  /** La primera vez que se usa una base vacía, carga la configuración inicial. */
+  /**
+   * Carga la configuración inicial en las tablas que estén vacías (una vez por instancia).
+   * Revisa tabla por tabla: repara bases a las que les quedó algo sin cargar.
+   */
   private ensureSeed(): Promise<void> {
     this.seeded ??= (async () => {
+      const seeds: [TableName, object[]][] = [
+        ["sources", DEFAULT_SOURCES],
+        ["indicators", DEFAULT_INDICATORS],
+        ["sections", DEFAULT_SECTIONS],
+        ["map_points", DEFAULT_MAP_POINTS],
+      ];
+      for (const [table, rows] of seeds) {
+        const { count, error } = await this.sb.from(table).select("id", { count: "exact", head: true });
+        if (error) throw new Error(`Supabase (${table}): ${error.message}`);
+        if (!count) this.check(await this.sb.from(table).upsert(rows));
+      }
       const row = this.check(await this.sb.from("settings").select("id").eq("id", "site").maybeSingle());
-      if (row) return;
-      await this.sb.from("settings").upsert({ id: "site", value: DEFAULT_SETTINGS });
-      await this.sb.from("sources").upsert(DEFAULT_SOURCES);
-      await this.sb.from("indicators").upsert(DEFAULT_INDICATORS);
-      await this.sb.from("sections").upsert(DEFAULT_SECTIONS);
-      await this.sb.from("map_points").upsert(DEFAULT_MAP_POINTS);
+      if (!row) this.check(await this.sb.from("settings").upsert({ id: "site", value: DEFAULT_SETTINGS }));
     })().catch((e) => {
       this.seeded = null;
       throw e;

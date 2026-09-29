@@ -14,6 +14,7 @@ const NAV = [
   ["/admin/mapa", "Mapa"],
   ["/admin/resumen", "Resumen diario"],
   ["/admin/ajustes", "Ajustes"],
+  ["/admin/diagnostico", "Diagnóstico"],
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

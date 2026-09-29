@@ -91,13 +91,16 @@ export async function SectionBlock({ section, settings }: { section: Section; se
       if (!counters.length) return null;
       return <Counters now={Date.now()} items={counters.map(toCounterData)} />;
     }
-    case "indicators":
+    case "indicators": {
+      const withValue = (await getIndicators()).filter((i) => i.show_in_panel && !isCounter(i) && i.value != null);
+      if (!withValue.length) return null;
       return (
         <section>
           {section.title && <SectionTitle title={section.title} href="/indicadores" />}
           <IndicatorsPanel items={await getIndicators()} />
         </section>
       );
+    }
     case "map": {
       const data = await getMapData();
       return (

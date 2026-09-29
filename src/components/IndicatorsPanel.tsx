@@ -6,7 +6,9 @@ import { Sparkline } from "./Sparkline";
 const STALE_MS = 3 * 86400000;
 
 export function IndicatorsPanel({ items }: { items: Indicator[] }) {
-  const list = items.filter((i) => i.show_in_panel && !isCounter(i));
+  // sin valor todavía (primera carga o fuente caída): no se muestra en lugar de "s/d"
+  const list = items.filter((i) => i.show_in_panel && !isCounter(i) && i.value != null);
+  if (!list.length) return null;
   const groups = [...new Set(list.map((i) => i.group))];
   return (
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

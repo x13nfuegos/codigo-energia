@@ -38,7 +38,7 @@ export default async function Dashboard({ searchParams }: { searchParams: FlashP
     <div className="max-w-5xl">
       <h1 className="mb-6 text-2xl font-bold">Tablero</h1>
       <Flash {...sp} />
-      {storeWarning && <Flash err={storeWarning} />}
+      {storeWarning && <Flash err={`${storeWarning} Revisá Diagnóstico.`} />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stat("Notas publicadas", published, "/admin/notas")}
         {stat("Últimas 24 h", today)}

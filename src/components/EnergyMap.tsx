@@ -120,10 +120,13 @@ export default function EnergyMap({ points, news, layers, height = 560, focus, s
         zoomOffset: -1,
       }
     : {
-        url: `https://{s}.basemaps.cartocdn.com/${light ? "rastertiles/voyager" : "dark_all"}/{z}/{x}/{y}{r}.png`,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        // OpenStreetMap no pide clave; en las variantes oscuras se invierte con CSS para acompañar la identidad
+        url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         tileSize: 256,
         zoomOffset: 0,
+        className: light ? "map-tiles" : "map-tiles map-tiles--dark",
+        maxZoom: 18,
       };
 
   const chip = (on: boolean) =>
