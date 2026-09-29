@@ -426,7 +426,10 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     }
   }
 
-  if (!onlySourceId) await enrichMissing(40, 60000).catch(() => undefined);
+  if (!onlySourceId) {
+    await enrichMissing(40, 60000).catch(() => undefined);
+    await verifyPhotos(20, 25000).catch(() => undefined);
+  }
 
   let removed = 0;
   if (!onlySourceId && settings.retention_days > 0) {
@@ -512,4 +515,50 @@ export async function enrichMissing(limit = 25, budgetMs = 60000): Promise<numbe
     });
   });
   return fixed;
+}
+
+const TAG_PHOTO_OK = "foto:ok";
+
+/** true si la foto se puede descargar y tiene tamaño de foto (no un logo ni un píxel de seguimiento). */
+async function photoWorks(url: string): Promise<boolean> {
+  const { fetchPublicImage } = await import("./safe-image");
+  const buf = await fetchPublicImage(url);
+  if (!buf) return false;
+  try {
+    const sharp = (await import("sharp")).default;
+    const m = await sharp(buf).metadata();
+    return (m.width ?? 0) >= 320 && (m.height ?? 0) >= 180;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Revisa que las fotos de las notas recientes carguen de verdad. Si una no sirve, busca otra por titular;
+ * si no hay, la nota queda sin foto (no aparece en los listados de la portada hasta conseguir una).
+ */
+export async function verifyPhotos(limit = 30, budgetMs = 45000): Promise<{ checked: number; replaced: number; removed: number }> {
+  const store = await getStore();
+  const deadline = Date.now() + budgetMs;
+  const pending = (await store.queryArticles({ limit: 150, hasImage: true })).filter((a) => !(a.tags ?? []).includes(TAG_PHOTO_OK)).slice(0, limit);
+  let checked = 0;
+  let replaced = 0;
+  let removed = 0;
+  await mapLimit(pending, 4, async (a) => {
+    if (Date.now() > deadline || !a.image) return;
+    checked++;
+    let image: string | null = a.image;
+    if (!(await photoWorks(image).catch(() => false))) {
+      image = null;
+      const found = await findImageByTitle(a.title).catch(() => null);
+      if (found && found.image !== a.image && (await photoWorks(found.image).catch(() => false))) image = found.image;
+      if (image) replaced++;
+      else removed++;
+    }
+    await store.patch("articles", a.id, {
+      image,
+      tags: [...(a.tags ?? []).filter((t) => t !== TAG_PHOTO_OK), ...(image ? [TAG_PHOTO_OK] : [])],
+    });
+  });
+  return { checked, replaced, removed };
 }

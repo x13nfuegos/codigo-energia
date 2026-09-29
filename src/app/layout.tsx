@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getSettings } from "@/lib/site";
 import { THEMES, isTheme } from "@/lib/themes";
+import { Analytics } from "@vercel/analytics/next";
 import { RegisterSW } from "@/components/RegisterSW";
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen">
         {children}
         <RegisterSW />
+        <Analytics />
       </body>
     </html>
   );

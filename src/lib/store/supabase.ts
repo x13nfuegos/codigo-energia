@@ -108,6 +108,7 @@ export class SupabaseStore implements Store {
     if (q.featured !== undefined) query = query.eq("featured", q.featured);
     if (q.since) query = query.gte("published_at", q.since);
     if (q.hasGeo) query = query.not("geo", "is", null);
+    if (q.hasImage) query = query.not("image", "is", null).neq("image", "");
     if (q.search?.trim()) {
       const s = q.search.trim().replace(/[%,()]/g, " ");
       query = query.or(`title.ilike.%${s}%,summary.ilike.%${s}%`);

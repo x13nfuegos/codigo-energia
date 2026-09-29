@@ -3,7 +3,7 @@ import { Submit } from "@/components/admin/Submit";
 import { runDiagnostics } from "@/lib/diagnostics";
 import { timeAgo } from "@/lib/format";
 import { getStore } from "@/lib/store";
-import { applyUpdates, findMissingPhotos, refreshIndicatorsNow, scrapeNow } from "../../actions";
+import { applyUpdates, findMissingPhotos, makeLatestAudio, refreshIndicatorsNow, scrapeNow } from "../../actions";
 
 export const maxDuration = 60;
 
@@ -18,7 +18,8 @@ export default async function Diagnostico({ searchParams }: { searchParams: Flas
         <div className="ml-auto flex flex-wrap gap-2">
           <form action={scrapeNow.bind(null, null, path)}><Submit>Scrapear ahora</Submit></form>
           <form action={refreshIndicatorsNow.bind(null, path, false)}><Submit className="btn">Actualizar cotizaciones</Submit></form>
-          <form action={findMissingPhotos}><Submit className="btn">Buscar fotos faltantes</Submit></form>
+          <form action={findMissingPhotos}><Submit className="btn">Buscar y revisar fotos</Submit></form>
+          <form action={makeLatestAudio}><Submit className="btn">Generar audio del resumen</Submit></form>
           <form action={applyUpdates}><Submit className="btn">Aplicar actualizaciones</Submit></form>
         </div>
       </div>

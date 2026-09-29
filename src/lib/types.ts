@@ -251,6 +251,9 @@ export interface Settings {
   /** versión de los bloques de portada por defecto ya incorporados */
   sections_version?: number;
   podcast?: Podcast;
+  /** último intento de generar el audio del resumen (para reintentar y mostrar el error) */
+  audio_status?: { at: string; ok: boolean; error?: string | null } | null;
+  instagram?: InstagramSettings;
   last_scrape_at?: string | null;
   last_indicators_at?: string | null;
 }
@@ -278,4 +281,29 @@ export interface ArticleQuery {
   orderBy?: "published_at" | "views";
   /** solo notas geolocalizadas */
   hasGeo?: boolean;
+  /** solo notas con foto (listados públicos) */
+  hasImage?: boolean;
+}
+
+export interface InstagramPost {
+  article_id: string;
+  title: string;
+  at: string;
+  ok: boolean;
+  media_id?: string | null;
+  permalink?: string | null;
+  error?: string | null;
+}
+
+export interface InstagramSettings {
+  /** publicar solo */
+  enabled: boolean;
+  /** máximo de posteos por día */
+  per_day: number;
+  /** horas (Argentina) en las que se publica */
+  hours: number[];
+  hashtags: string;
+  /** usar IA para escribir el texto del posteo */
+  ai_caption: boolean;
+  posts: InstagramPost[];
 }

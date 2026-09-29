@@ -220,7 +220,10 @@ export async function briefMedia(id: string, kind: "audio" | "video") {
   if (!b) back("/admin/resumen", "No existe", true);
   try {
     const m = await import("@/lib/media");
-    if (kind === "audio") await m.generateBriefAudio(b);
+    if (kind === "audio") {
+      const r = await (await import("@/lib/jobs")).makeAudio(b);
+      if (!r.ok) throw new Error(r.error);
+    }
     else await m.requestBriefVideo(b);
   } catch (e) {
     back("/admin/resumen", errMsg(e), true);
@@ -435,9 +438,13 @@ export async function deleteEpisode(id: string) {
 
 export async function findMissingPhotos() {
   await requireAdmin();
-  const { enrichMissing } = await import("@/lib/scraper");
-  const fixed = await enrichMissing(60, 45000);
-  back("/admin/diagnostico", `Búsqueda de fotos: ${fixed} notas ahora tienen foto`);
+  const { enrichMissing, verifyPhotos } = await import("@/lib/scraper");
+  const fixed = await enrichMissing(40, 25000);
+  const v = await verifyPhotos(30, 25000);
+  back(
+    "/admin/diagnostico",
+    `Fotos: ${fixed} notas consiguieron foto · ${v.checked} revisadas, ${v.replaced} reemplazadas, ${v.removed} sin foto válida (no se muestran en la portada)`,
+  );
 }
 
 export async function applyUpdates() {
@@ -451,4 +458,19 @@ export async function applyUpdates() {
     if (e && typeof e === "object" && "digest" in e) throw e; // redirect de Next
     back("/admin/diagnostico", `No se pudieron aplicar: ${errMsg(e)}`, true);
   }
+}
+
+export async function makeLatestAudio() {
+  await requireAdmin();
+  const store = await getStore();
+  let [last] = (await store.list("briefs")).sort((a, b) => b.date.localeCompare(a.date));
+  if (!last) {
+    try {
+      last = await (await import("@/lib/ai")).generateBrief();
+    } catch (e) {
+      back("/admin/diagnostico", `No hay resumen y no se pudo generar: ${errMsg(e)}`, true);
+    }
+  }
+  const r = await (await import("@/lib/jobs")).makeAudio(last);
+  back("/admin/diagnostico", r.ok ? `Audio del resumen ${last.date} generado` : `Audio: ${r.error}`, !r.ok);
 }

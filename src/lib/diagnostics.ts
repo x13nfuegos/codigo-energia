@@ -73,6 +73,21 @@ export async function runDiagnostics(): Promise<{ checks: Check[]; env: Record<s
       },
       30000,
     ),
+    timed("Audio del resumen (ElevenLabs)", async () => {
+      const key = process.env.ELEVENLABS_API_KEY;
+      if (!key) throw new Error("falta ELEVENLABS_API_KEY en Vercel");
+      const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", { headers: { "xi-api-key": key }, signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      const j = (await res.json()) as { tier?: string; character_count?: number; character_limit?: number };
+      const [settings, briefs] = await Promise.all([store.getSettings(), store.list("briefs")]);
+      const [last] = briefs.sort((a, b) => b.date.localeCompare(a.date));
+      const st = settings.audio_status;
+      const lastTry = st ? ` · último intento: ${st.ok ? "OK" : `ERROR ${st.error}`}` : "";
+      const info = `plan ${j.tier ?? "?"} · ${j.character_count ?? "?"}/${j.character_limit ?? "?"} caracteres usados · resumen ${last?.date ?? "—"}: ${last?.audio_url ? "con audio ✓" : "sin audio"}${lastTry}`;
+      if (!settings.brief_audio) throw new Error(`el audio está apagado en Ajustes · ${info}`);
+      if (st && !st.ok && !last?.audio_url) throw new Error(info);
+      return info;
+    }),
     timed("Yahoo Finance (WTI)", async () => {
       const j = JSON.parse(await fetchText("https://query1.finance.yahoo.com/v8/finance/chart/CL%3DF?range=5d&interval=1d", 15000));
       return `WTI ${j.chart?.result?.[0]?.meta?.regularMarketPrice ?? "sin dato"}`;

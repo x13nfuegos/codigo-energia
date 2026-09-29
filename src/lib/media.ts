@@ -11,8 +11,13 @@ export async function saveMedia(name: string, data: ArrayBuffer, contentType: st
   if (env.ok) {
     const sb = createClient(env.url, env.key, { auth: { persistSession: false } });
     const bucket = process.env.SUPABASE_MEDIA_BUCKET || "media";
-    const { error } = await sb.storage.from(bucket).upload(name, data, { contentType, upsert: true });
-    if (error) throw new Error(`Storage: ${error.message}`);
+    let { error } = await sb.storage.from(bucket).upload(name, data, { contentType, upsert: true });
+    // la primera vez el bucket no existe: se crea público y se reintenta
+    if (error && /not found|does not exist/i.test(error.message)) {
+      await sb.storage.createBucket(bucket, { public: true }).catch(() => undefined);
+      ({ error } = await sb.storage.from(bucket).upload(name, data, { contentType, upsert: true }));
+    }
+    if (error) throw new Error(`Storage (bucket "${bucket}"): ${error.message}`);
     return sb.storage.from(bucket).getPublicUrl(name).data.publicUrl;
   }
   const file = path.join(process.cwd(), "public", "media", name);
