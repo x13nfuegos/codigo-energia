@@ -1,6 +1,7 @@
 import { extractArticleText, rewriteArticle } from "./ai";
 import { isGoogleNewsUrl, resolveGoogleNewsUrl } from "./gnews";
 import { fetchText, normalizeUrl } from "./scraper";
+import { cheapProvider } from "./llm";
 import { getStore } from "./store";
 import type { Article } from "./types";
 
@@ -19,7 +20,7 @@ function excerpt(text: string, maxWords = 90): string {
 }
 
 /**
- * Resumen escrito de la nota: con ANTHROPIC_API_KEY, Claude redacta un resumen propio citando el medio;
+ * Resumen escrito de la nota: con GEMINI_API_KEY o ANTHROPIC_API_KEY, una IA económica redacta un resumen propio citando el medio;
  * sin clave, se guarda un extracto breve de la nota original. Se ejecuta una sola vez por nota.
  */
 export async function ensureArticleSummary(a: Article): Promise<void> {
@@ -36,7 +37,7 @@ export async function ensureArticleSummary(a: Article): Promise<void> {
       }
     }
     const tags = (a.tags ?? []).filter((t) => !t.startsWith("resumen:"));
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (cheapProvider()) {
       const r = await rewriteArticle({ ...a, url });
       await store.patch("articles", a.id, { body: r.body, summary: a.summary || r.summary, tags: [...tags, TAG_AI] });
       return;

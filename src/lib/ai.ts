@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import * as cheerio from "cheerio";
 import { fetchText, truncate } from "./scraper";
 import { getStore } from "./store";
+import { cheapJson } from "./llm";
 import type { Article, DailyBrief } from "./types";
 
 const MODEL = "claude-opus-5-5";
@@ -121,21 +122,23 @@ const REWRITE_SCHEMA = {
   },
 } as const;
 
-/** Escribe copete y cuerpo propios a partir de la nota original (con atribución a la fuente). */
+/**
+ * Escribe copete y resumen propios a partir de la nota original, citando el medio.
+ * Usa la IA económica (Gemini Flash o Claude Haiku) y recorta la entrada para gastar pocos tokens.
+ */
 export async function rewriteArticle(a: Article): Promise<Pick<Article, "summary" | "body">> {
   let original = "";
   try {
-    original = extractArticleText(await fetchText(a.url, 12000));
+    original = extractArticleText(await fetchText(a.url, 12000)).slice(0, 6000);
   } catch {
     /* si no se puede leer la nota, se trabaja con título y bajada */
   }
-  const out = await askJson<{ summary: string; body: string }>(
+  const out = await cheapJson<{ summary: string; body: string }>(
     "Sos redactor de Código Energía, medio argentino de energía, oil & gas y minería. Escribís en español rioplatense, estilo periodístico, " +
-      "con tus propias palabras (nunca copies frases textuales largas), sin agregar datos que no estén en el material. " +
-      "Mencioná el medio de origen una vez en el cuerpo.",
+      "con tus propias palabras (nunca copies frases textuales largas) y sin agregar datos que no estén en el material. " +
+      'Respondé solo con JSON: {"summary": "copete de 1 o 2 oraciones, máx. 250 caracteres", "body": "resumen de 2 o 3 párrafos breves separados por una línea en blanco, máx. 160 palabras, que mencione al medio de origen"}.',
     `Medio de origen: ${a.source_name ?? "desconocido"}\nTítulo: ${a.title}\nBajada: ${a.summary}\n\nTexto original:\n${original || "(no disponible)"}`,
-    REWRITE_SCHEMA,
-    "low",
   );
+  if (!out.body) throw new Error("La IA devolvió un resumen vacío");
   return { summary: out.summary, body: out.body };
 }

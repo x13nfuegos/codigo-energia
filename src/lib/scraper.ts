@@ -419,7 +419,7 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     insertedAll.push(...inserted);
   }
 
-  if (settings.ai_rewrite_auto && process.env.ANTHROPIC_API_KEY) {
+  if (settings.ai_rewrite_auto && (process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY)) {
     const { rewriteArticle } = await import("./ai");
     for (const a of insertedAll.slice(0, 5)) {
       try {

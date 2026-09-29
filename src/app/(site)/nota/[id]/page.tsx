@@ -8,6 +8,7 @@ import { Img } from "@/components/Img";
 import { dateTime, hostname } from "@/lib/format";
 import { getStore } from "@/lib/store";
 import { categoryOf, getSettings } from "@/lib/site";
+import { cheapProvider } from "@/lib/llm";
 import { TAG_AI, TAG_EXTRACT, ensureArticleSummary } from "@/lib/summary";
 
 async function load(id: string) {
@@ -30,7 +31,7 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   let a = await load(id);
   if (!a) notFound();
   if (!a.body) {
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (cheapProvider()) {
       // el resumen con IA tarda unos segundos: se genera en segundo plano y aparece en la próxima visita
       const pending = a;
       after(() => ensureArticleSummary(pending));
