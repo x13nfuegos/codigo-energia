@@ -34,6 +34,26 @@ export interface Article {
   geo?: GeoTag | null;
 }
 
+export interface PodcastEpisode {
+  id: string;
+  /** link de Vimeo, YouTube o archivo de video/audio */
+  url: string;
+  title: string;
+  description?: string | null;
+  number?: number | null;
+  published_at: string;
+  thumbnail?: string | null;
+  duration?: number | null;
+  /** ya se consultaron título/miniatura al proveedor */
+  meta_ok?: boolean;
+}
+
+export interface Podcast {
+  title: string;
+  description: string;
+  episodes: PodcastEpisode[];
+}
+
 export interface GeoTag {
   lat: number;
   lng: number;
@@ -143,7 +163,8 @@ export type SectionType =
   | "indicators"
   | "map"
   | "daily_brief"
-  | "html";
+  | "html"
+  | "podcast";
 
 export interface Section {
   id: string;
@@ -226,6 +247,9 @@ export interface Settings {
   map_layers: MapLayer[];
   /** versión de las fuentes por defecto ya incorporadas a esta base */
   sources_version?: number;
+  /** versión de los bloques de portada por defecto ya incorporados */
+  sections_version?: number;
+  podcast?: Podcast;
   last_scrape_at?: string | null;
   last_indicators_at?: string | null;
 }

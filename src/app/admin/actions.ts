@@ -11,7 +11,7 @@ import * as cheerio from "cheerio";
 import { articleId, fetchSource, fetchText, geotagArticles, runScrape, type RawItem } from "@/lib/scraper";
 import { getStore } from "@/lib/store";
 import { isTheme, type ThemeId } from "@/lib/themes";
-import type { Article, Category, MapLayer, Settings, Source, TableName, Tables } from "@/lib/types";
+import type { Article, Category, MapLayer, PodcastEpisode, Settings, Source, TableName, Tables } from "@/lib/types";
 
 async function requireAdmin() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -366,4 +366,69 @@ export async function restoreOfficialCounters() {
   const r = await refreshIndicators({ forceOfficial: true });
   const bad = r.filter((x) => !x.ok && OFFICIAL_COUNTERS.some((c) => c.id === x.id));
   back("/admin/indicadores", bad.length ? `Contadores restaurados; no se pudo leer el dato oficial: ${bad[0].error}` : "Contadores oficiales restaurados y actualizados", bad.length > 0);
+}
+
+// ---------- podcast ----------
+
+async function podcastState() {
+  const { DEFAULT_PODCAST } = await import("@/lib/podcast");
+  const store = await getStore();
+  return { store, podcast: (await store.getSettings()).podcast ?? DEFAULT_PODCAST };
+}
+
+export async function savePodcastInfo(fd: FormData) {
+  await requireAdmin();
+  const { store, podcast } = await podcastState();
+  await store.saveSettings({
+    podcast: { ...podcast, title: String(fd.get("title") || podcast.title).trim(), description: String(fd.get("description") ?? "").trim() },
+  });
+  back("/admin/podcast", "Datos del podcast guardados");
+}
+
+export async function saveEpisode(fd: FormData) {
+  await requireAdmin();
+  const { parseVideo, fetchEpisodeMeta } = await import("@/lib/podcast");
+  const { store, podcast } = await podcastState();
+  const str = (k: string) => String(fd.get(k) ?? "").trim();
+  const url = str("url");
+  if (!parseVideo(url)) back("/admin/podcast", "El link no es de Vimeo, YouTube ni un archivo de video/audio", true);
+  const id = str("id") || `ep-${Date.now().toString(36)}`;
+  const prev = podcast.episodes.find((e) => e.id === id);
+  const number = Number(str("number")) || prev?.number || Math.max(0, ...podcast.episodes.map((e) => e.number ?? 0)) + 1;
+  let episode: PodcastEpisode = {
+    ...(prev ?? {}),
+    id,
+    url,
+    number,
+    title: str("title") || prev?.title || `Episodio ${number}`,
+    description: str("description") || prev?.description || null,
+    published_at: str("published_at") ? new Date(`${str("published_at")}T12:00:00-03:00`).toISOString() : prev?.published_at ?? new Date().toISOString(),
+    meta_ok: prev?.url === url ? prev.meta_ok : false,
+  };
+  // al cargar un link nuevo se traen título, miniatura y duración del video
+  if (!episode.meta_ok) {
+    try {
+      const meta = await fetchEpisodeMeta(url);
+      episode = {
+        ...episode,
+        ...meta,
+        title: str("title") || meta.title || episode.title,
+        description: str("description") || meta.description || episode.description,
+        published_at: str("published_at") ? episode.published_at : meta.published_at ?? episode.published_at,
+        meta_ok: true,
+      };
+    } catch {
+      /* se reintenta al mostrar el podcast */
+    }
+  }
+  const episodes = prev ? podcast.episodes.map((e) => (e.id === id ? episode : e)) : [...podcast.episodes, episode];
+  await store.saveSettings({ podcast: { ...podcast, episodes } });
+  back("/admin/podcast", prev ? "Episodio actualizado" : "Episodio publicado: ya aparece en la playlist");
+}
+
+export async function deleteEpisode(id: string) {
+  await requireAdmin();
+  const { store, podcast } = await podcastState();
+  await store.saveSettings({ podcast: { ...podcast, episodes: podcast.episodes.filter((e) => e.id !== id) } });
+  back("/admin/podcast", "Episodio eliminado");
 }

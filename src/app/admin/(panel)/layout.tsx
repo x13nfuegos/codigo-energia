@@ -12,6 +12,7 @@ const NAV = [
   ["/admin/portada", "Diagramación de portada"],
   ["/admin/indicadores", "Indicadores"],
   ["/admin/mapa", "Mapa"],
+  ["/admin/podcast", "Podcast"],
   ["/admin/resumen", "Resumen diario"],
   ["/admin/ajustes", "Ajustes"],
   ["/admin/diagnostico", "Diagnóstico"],

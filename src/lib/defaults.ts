@@ -1,4 +1,5 @@
 import { SE_NO_CONVENCIONAL, SE_SOURCE, SE_SOURCE_URL } from "./official-ids";
+import { DEFAULT_PODCAST } from "./podcast";
 import type { Indicator, MapPoint, Section, Settings, Source } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   // Servicio WMS público del SIG de la Secretaría de Energía. Desde el back office
   // se pueden explorar todas las capas del servidor y sumar las que hagan falta.
   sources_version: 2,
+  sections_version: 2,
+  podcast: DEFAULT_PODCAST,
   map_layers: [
     { id: "se-gasoductos-proy", label: "Gasoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidtransp_gasoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
     { id: "se-oleoductos-proy", label: "Oleoductos proyectados (SE)", url: "https://sig.energia.gob.ar/wmsenergia", layers: "hidrocarburos_transporte_oleoductos_proyectados", enabled: true, visible: true, opacity: 0.9 },
@@ -63,6 +66,10 @@ export const BING_SOURCES = [
   bing("bing-energia", "Energía", "energía eléctrica Argentina CAMMESA ENARSA", "energia"),
   bing("bing-renovables", "Renovables", "parque solar eólico renovables Argentina", "renovables"),
 ];
+
+/** Bloques de portada agregados en versiones posteriores (se suman una vez a bases existentes). */
+export const SECTIONS_VERSION = 2;
+export const SECTIONS_ADDED = [{ version: 2, ids: ["podcast"] }];
 
 /** Versión de las fuentes por defecto: al subirla, las bases existentes suman las fuentes nuevas una sola vez. */
 export const SOURCES_VERSION = 2;
@@ -262,6 +269,7 @@ export const DEFAULT_SECTIONS: Section[] = [
   sec({ id: "counters", type: "counters", title: "Contadores", limit: 3 }),
   sec({ id: "ultimas", type: "list", title: "Últimas noticias", limit: 6, offset: 1 }),
   sec({ id: "mapa", type: "map", title: "El mapa de la energía", limit: 0 }),
+  sec({ id: "podcast", type: "podcast", title: "Código Energía Podcast", limit: 4 }),
   sec({ id: "brief", type: "daily_brief", title: "El resumen de ayer", limit: 1 }),
   sec({ id: "oil-gas", type: "grid", title: "Oil & Gas", category: "oil-gas", limit: 4, columns: 2 }),
   sec({ id: "mas-leidas", type: "most_read", title: "Más leídas", limit: 6, columns: 3 }),

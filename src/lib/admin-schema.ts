@@ -109,6 +109,7 @@ export const SCHEMAS: Partial<Record<TableName, Field[]>> = {
         { value: "indicators", label: "Panel de indicadores" },
         { value: "map", label: "Mapa" },
         { value: "daily_brief", label: "Resumen diario" },
+        { value: "podcast", label: "Podcast (último episodio + lista)" },
         { value: "html", label: "HTML libre (banner, embed)" },
       ],
     },

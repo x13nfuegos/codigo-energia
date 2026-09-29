@@ -14,6 +14,7 @@ export function Header({ settings }: { settings: Settings }) {
       children: subCategories(settings, c.slug).map((s) => ({ href: `/seccion/${s.slug}`, label: s.name })),
     })),
     { href: "/mapa", label: "Mapa" },
+    { href: "/podcast", label: "Podcast" },
     { href: "/resumen", label: "Resumen diario" },
     { href: "/indicadores", label: "Indicadores" },
   ];

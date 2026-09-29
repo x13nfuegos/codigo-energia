@@ -400,6 +400,21 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
     await store.saveSettings({ sources_version: SOURCES_VERSION });
     all = await store.list("sources");
   }
+  const { SECTIONS_VERSION, SECTIONS_ADDED, DEFAULT_SECTIONS } = await import("./defaults");
+  if ((settings.sections_version ?? 1) < SECTIONS_VERSION) {
+    const sections = (await store.list("sections")).sort((a, b) => a.order - b.order);
+    const newIds = SECTIONS_ADDED.filter((a) => a.version > (settings.sections_version ?? 1)).flatMap((a) => a.ids);
+    for (const id of newIds) {
+      const def = DEFAULT_SECTIONS.find((d) => d.id === id);
+      if (!def || sections.some((x) => x.id === id || x.type === def.type)) continue;
+      // se ubica después del mapa (o de "Últimas noticias")
+      const after = sections.findIndex((x) => x.type === "map");
+      const at = after >= 0 ? after + 1 : Math.min(3, sections.length);
+      sections.splice(at, 0, def);
+    }
+    await store.upsert("sections", sections.map((x, i) => ({ ...x, order: i })));
+    await store.saveSettings({ sections_version: SECTIONS_VERSION });
+  }
   for (const f of SOURCE_FIXES) {
     const s = all.find((x) => x.id === f.id && x.url === f.oldUrl);
     if (s) await store.patch("sources", s.id, f.patch);

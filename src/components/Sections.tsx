@@ -4,7 +4,10 @@ import Link from "next/link";
 import { getStore } from "@/lib/store";
 import { categoryFamily, categoryOf, getIndicators } from "@/lib/site";
 import type { Section, Settings } from "@/lib/types";
+import { after } from "next/server";
+import { enrichPodcast, sortedEpisodes } from "@/lib/podcast";
 import { BriefCard } from "./BriefCard";
+import { PodcastPlayer } from "./PodcastPlayer";
 import { GridCard, HeroCard, ListItem, SectionTitle } from "./Cards";
 import { Counters } from "./Counters";
 import { IndicatorsPanel } from "./IndicatorsPanel";
@@ -113,6 +116,17 @@ export async function SectionBlock({ section, settings }: { section: Section; se
     case "daily_brief": {
       const [brief] = (await store.list("briefs")).sort((a, b) => b.date.localeCompare(a.date));
       return brief ? <BriefCard brief={brief} title={section.title || "El resumen de ayer"} /> : null;
+    }
+    case "podcast": {
+      const podcast = settings.podcast;
+      if (!podcast?.episodes.length) return null;
+      if (podcast.episodes.some((e) => !e.meta_ok)) after(async () => enrichPodcast(podcast, (p) => store.saveSettings({ podcast: p })));
+      return (
+        <section>
+          <SectionTitle title={section.title || podcast.title} href="/podcast" />
+          <PodcastPlayer episodes={sortedEpisodes(podcast).slice(0, section.limit || 4)} compact />
+        </section>
+      );
     }
     case "html":
       return section.html ? <section dangerouslySetInnerHTML={{ __html: section.html }} /> : null;
