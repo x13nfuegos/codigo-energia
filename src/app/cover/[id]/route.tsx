@@ -134,10 +134,11 @@ function TopicIcon({ kind, size, color }: { kind: Topic; size: number; color: st
   const p = { fill: "none", stroke: color, strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const paths: Record<Topic, React.ReactNode> = {
     oil: (
-      <>
+      // satori no acepta fragmentos dentro de <svg>: se agrupa con <g>
+      <g>
         <ellipse cx="12" cy="4.5" rx="6.5" ry="2" {...p} />
         <path d="M5.5 4.5v15c0 1.1 2.9 2 6.5 2s6.5-.9 6.5-2v-15M5.5 9.5c0 1.1 2.9 2 6.5 2s6.5-.9 6.5-2M5.5 15c0 1.1 2.9 2 6.5 2s6.5-.9 6.5-2" {...p} />
-      </>
+      </g>
     ),
     gas: <path d="M12 2.5c.8 3.2 5.5 5.6 5.5 11a5.5 5.5 0 0 1-11 0c0-2.6 1.3-4.3 2.6-5.6.2 1.8 1 2.9 2.1 3.4C11 8.6 11.2 5.4 12 2.5Z" {...p} />,
     well: <path d="M3 21h18M9 21l3.5-10 3.5 10M2.5 8.5 19 5.5M2.5 8.5c-.6 1.6-.2 3.2 1 4.2M3.5 12.7V21M19 5.5v3.5M17.3 9h3.4v3h-3.4z" {...p} />,

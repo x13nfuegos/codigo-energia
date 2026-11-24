@@ -51,7 +51,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
             width: W,
             height: img ? PHOTO_H : 420,
             backgroundColor: t.bg,
-            backgroundImage: img ? undefined : `radial-gradient(circle at 0% 0%, ${cat.color} 0%, transparent 60%), radial-gradient(circle at 100% 100%, ${t.accent}40 0%, transparent 50%)`,
+            // satori falla con propiedades en undefined: el degradado se agrega solo cuando no hay foto
+            ...(img ? {} : { backgroundImage: `radial-gradient(circle at 0% 0%, ${cat.color} 0%, transparent 60%), radial-gradient(circle at 100% 100%, ${t.accent}40 0%, transparent 50%)` }),
           }}
         >
           {img && <img src={img} width={W} height={PHOTO_H} style={{ position: "absolute", top: 0, left: 0, objectFit: "cover" }} />}
