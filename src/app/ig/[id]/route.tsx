@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
-import { loadFonts } from "@/lib/og-fonts";
+import { loadFonts, ogCacheControl } from "@/lib/og-fonts";
 import { fetchPublicImage } from "@/lib/safe-image";
 import { categoryOf, getSettings } from "@/lib/site";
 import { getStore } from "@/lib/store";
@@ -82,6 +82,6 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   );
   const jpg = await sharp(Buffer.from(await png.arrayBuffer())).jpeg({ quality: 90 }).toBuffer();
   return new Response(new Uint8Array(jpg), {
-    headers: { "content-type": "image/jpeg", "cache-control": "public, max-age=3600, s-maxage=86400" },
+    headers: { "content-type": "image/jpeg", "cache-control": ogCacheControl(fonts, "public, max-age=3600, s-maxage=86400") },
   });
 }

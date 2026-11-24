@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { categoryOf, getSettings } from "@/lib/site";
 import { getStore } from "@/lib/store";
 import { THEMES, isTheme } from "@/lib/themes";
-import { loadFonts } from "@/lib/og-fonts";
+import { loadFonts, ogCacheControl } from "@/lib/og-fonts";
 
 /**
  * Portada generada para notas sin foto: título, sección y medio con la identidad del sitio.
@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .format(new Date(a.published_at))
     .replace(".", "");
 
-  const headers = { "cache-control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400" };
+  const headers = { "cache-control": ogCacheControl(fonts, "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400") };
 
   // miniaturas de listados (v=thumb, cuadrada) y tarjetas (v=card, 4:3): ilustración del tema + titular
   const variant = new URL(req.url).searchParams.get("v");

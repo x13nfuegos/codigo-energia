@@ -38,6 +38,8 @@ export async function fetchPublicImage(raw: string): Promise<Buffer | null> {
       }
       const type = res.headers.get("content-type") ?? "";
       if (!res.ok || !type.startsWith("image/") || type.includes("svg")) return null;
+      // si el servidor declara un tamaño mayor al límite, no se descarga
+      if (Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) return null;
       const buf = Buffer.from(await res.arrayBuffer());
       return buf.byteLength > MAX_BYTES ? null : buf;
     } catch {
