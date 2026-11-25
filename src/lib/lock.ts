@@ -1,29 +1,36 @@
+import { randomUUID } from "crypto";
 import { getStore } from "./store";
 
 /**
  * Locks entre instancias de Vercel, guardados en la configuración (settings.locks) con escritura atómica.
  * Evitan que dos instancias hagan a la vez la misma tarea en segundo plano (scrapeo, resumen, Instagram…).
  * Cada lock vence solo: si una instancia se corta a mitad de camino, otra puede tomarlo pasado `ttlMs`.
+ * El valor guardado es "vencimiento|dueño": solo el dueño puede liberarlo.
  */
-export async function tryLock(name: string, ttlMs: number): Promise<boolean> {
+const expiry = (v?: string) => (v ? new Date(v.split("|")[0]).getTime() || 0 : 0);
+
+/** Toma el lock; devuelve el token del dueño (para liberarlo) o null si lo tiene otra instancia. */
+export async function tryLock(name: string, ttlMs: number): Promise<string | null> {
   const store = await getStore();
   const now = Date.now();
+  const token = randomUUID();
   const res = await store.updateSettings((s) => {
     const locks = s.locks ?? {};
-    const until = locks[name] ? new Date(locks[name]).getTime() : 0;
-    if (until > now) return null; // lo tiene otra instancia
+    if (expiry(locks[name]) > now) return null; // lo tiene otra instancia
     // de paso se limpian los vencidos
-    const alive = Object.fromEntries(Object.entries(locks).filter(([, v]) => new Date(v).getTime() > now));
-    return { locks: { ...alive, [name]: new Date(now + ttlMs).toISOString() } };
+    const alive = Object.fromEntries(Object.entries(locks).filter(([, v]) => expiry(v) > now));
+    return { locks: { ...alive, [name]: `${new Date(now + ttlMs).toISOString()}|${token}` } };
   });
-  return res !== null;
+  return res ? token : null;
 }
 
-export async function releaseLock(name: string): Promise<void> {
+/** Libera el lock solo si sigue siendo de este dueño (si venció y lo tomó otra instancia, no se toca). */
+export async function releaseLock(name: string, token: string): Promise<void> {
   const store = await getStore();
   await store.updateSettings((s) => {
-    if (!s.locks?.[name]) return null;
-    const { [name]: _gone, ...rest } = s.locks;
+    const v = s.locks?.[name];
+    if (!v || v.split("|")[1] !== token) return null;
+    const { [name]: _gone, ...rest } = s.locks!;
     void _gone;
     return { locks: rest };
   });
@@ -31,10 +38,11 @@ export async function releaseLock(name: string): Promise<void> {
 
 /** Corre `fn` solo si consigue el lock; si no, devuelve { ran: false } sin hacer nada. */
 export async function withLock<T>(name: string, ttlMs: number, fn: () => Promise<T>): Promise<{ ran: true; value: T } | { ran: false }> {
-  if (!(await tryLock(name, ttlMs))) return { ran: false };
+  const token = await tryLock(name, ttlMs);
+  if (!token) return { ran: false };
   try {
     return { ran: true, value: await fn() };
   } finally {
-    await releaseLock(name).catch((e) => console.error(`lock ${name}: no se pudo liberar`, e));
+    await releaseLock(name, token).catch((e) => console.error(`lock ${name}: no se pudo liberar`, e));
   }
 }

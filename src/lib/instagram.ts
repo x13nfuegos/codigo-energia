@@ -168,7 +168,8 @@ export async function maybePostInstagram(): Promise<InstagramPost | null> {
   busy = true;
   try {
     const { withLock } = await import("./lock");
-    const r = await withLock("instagram", 5 * 60000, postIfDue);
+    // TTL holgado: publicar puede tardar varios minutos (texto con IA, procesamiento de la imagen en Instagram)
+    const r = await withLock("instagram", 15 * 60000, postIfDue);
     return r.ran ? r.value : null;
   } finally {
     busy = false;

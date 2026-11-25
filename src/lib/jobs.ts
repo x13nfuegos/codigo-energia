@@ -26,7 +26,7 @@ async function doDailyBrief(force: boolean) {
     log.push(`resumen ${date} generado`);
   }
   if (settings.brief_audio && !brief.audio_url && process.env.ELEVENLABS_API_KEY) {
-    const r = await makeAudio(brief);
+    const r = await makeAudio(brief, true);
     log.push(r.ok ? "audio generado" : `audio: ${r.error}`);
   }
   if (settings.brief_video && !brief.video_id && !brief.video_url && process.env.HEYGEN_API_KEY) {
@@ -40,18 +40,27 @@ async function doDailyBrief(force: boolean) {
   return { date, log };
 }
 
-/** Genera la locución y deja registrado el resultado (se ve en Diagnóstico y se reintenta solo). */
-export async function makeAudio(brief: DailyBrief): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Genera la locución y deja registrado el resultado (se ve en Diagnóstico y se reintenta solo).
+ * Todas las vías (resumen diario, reintento, back office) comparten el lock "audio": nunca se paga dos veces
+ * la misma locución. Con `onlyIfMissing`, se vuelve a mirar el resumen con el lock tomado y, si otra
+ * instancia ya hizo el audio, no se genera de nuevo.
+ */
+export async function makeAudio(brief: DailyBrief, onlyIfMissing = false): Promise<{ ok: boolean; error?: string }> {
   const store = await getStore();
-  try {
-    await generateBriefAudio(brief);
-    await store.saveSettings({ audio_status: { at: new Date().toISOString(), ok: true, error: null } });
-    return { ok: true };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    await store.saveSettings({ audio_status: { at: new Date().toISOString(), ok: false, error } });
-    return { ok: false, error };
-  }
+  const r = await withLock("audio", 5 * 60000, async () => {
+    if (onlyIfMissing && (await store.get("briefs", brief.id))?.audio_url) return { ok: true };
+    try {
+      await generateBriefAudio(brief);
+      await store.saveSettings({ audio_status: { at: new Date().toISOString(), ok: true, error: null } });
+      return { ok: true };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      await store.saveSettings({ audio_status: { at: new Date().toISOString(), ok: false, error } });
+      return { ok: false, error };
+    }
+  });
+  return r.ran ? r.value : { ok: false, error: "el audio ya se está generando (otra instancia)" };
 }
 
 /** Revisa videos pendientes de HeyGen. */
@@ -62,6 +71,7 @@ export async function checkPendingVideos() {
 }
 
 let running = false;
+let lastPhotoTry = 0;
 
 /**
  * Actualización "perezosa": cada visita revisa si pasó el intervalo configurado
@@ -80,8 +90,9 @@ export async function maybeRefresh() {
     if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(withLock("indicators", 3 * 60000, () => refreshIndicators({ fast: true })));
     if (ago(s.last_scrape_at) >= s.scrape_every_min) tasks.push(runScrape());
     await Promise.allSettled(tasks);
-    // verificación de fotos: como mucho cada 10 minutos en todo el sitio (el lock no se libera, vence solo)
-    if (await tryLock("photos", 10 * 60000).catch(() => false)) {
+    // verificación de fotos: como mucho cada 10 minutos en todo el sitio (el lock no se libera, vence solo).
+    // Primero un control en memoria, para no consultar la base en cada visita.
+    if (Date.now() - lastPhotoTry > 10 * 60000 && (lastPhotoTry = Date.now()) && (await tryLock("photos", 10 * 60000).catch(() => null))) {
       const { verifyPhotos } = await import("./scraper");
       await verifyPhotos(60, 30000).catch(() => undefined);
     }
@@ -92,7 +103,7 @@ export async function maybeRefresh() {
     } else if (s.brief_audio && process.env.ELEVENLABS_API_KEY && ago(s.audio_status?.at) >= 60) {
       // el resumen ya existe pero el audio falló o nunca se hizo: se reintenta cada hora
       const [last] = (await store.list("briefs")).sort((a, b) => b.date.localeCompare(a.date));
-      if (last && !last.audio_url) await withLock("audio", 5 * 60000, () => makeAudio(last));
+      if (last && !last.audio_url) await makeAudio(last, true);
     }
     await checkPendingVideos().catch(() => undefined);
     const { maybePostInstagram } = await import("./instagram");

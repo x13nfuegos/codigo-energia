@@ -166,6 +166,7 @@ export class SupabaseStore implements Store {
    * Así dos tareas en paralelo (scrapeo, audio, Instagram, admin) no se pisan los cambios.
    */
   async updateSettings(fn: (current: Settings) => Partial<Settings> | null): Promise<Settings | null> {
+    let lastInsertError = "";
     for (let attempt = 0; attempt < 8; attempt++) {
       const { value, exists } = await this.readSettings();
       const { _rev, ...current } = value;
@@ -176,6 +177,7 @@ export class SupabaseStore implements Store {
       if (!exists) {
         const ins = await this.sb.from("settings").insert({ id: "site", value: stored });
         if (!ins.error) return next;
+        lastInsertError = ins.error.message; // si fue una carrera, la próxima vuelta ya encuentra la fila
       } else {
         let q = this.sb.from("settings").update({ value: stored }).eq("id", "site");
         q = _rev === undefined ? q.is("value->>_rev", null) : q.eq("value->>_rev", String(_rev));
@@ -191,6 +193,10 @@ export class SupabaseStore implements Store {
       // otra instancia escribió primero: esperar un poco (con azar) y volver a intentar con lo nuevo
       await new Promise((r) => setTimeout(r, 50 + Math.random() * 150 * (attempt + 1)));
     }
-    throw new Error("Supabase: no se pudo guardar la configuración (demasiadas escrituras simultáneas)");
+    throw new Error(
+      lastInsertError
+        ? `Supabase: no se pudo crear la configuración (${lastInsertError})`
+        : "Supabase: no se pudo guardar la configuración (demasiadas escrituras simultáneas)",
+    );
   }
 }
