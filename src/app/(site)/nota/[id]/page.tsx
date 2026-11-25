@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { ListItem, SectionTitle } from "@/components/Cards";
@@ -48,7 +49,11 @@ export default async function Nota({ params }: { params: Promise<{ id: string }>
   const photoCredit = (a.tags ?? []).find((t) => t.startsWith("credito:"))?.slice(8);
   const isExtract = (a.tags ?? []).includes(TAG_EXTRACT);
   const isAi = (a.tags ?? []).some((t) => t === TAG_AI || t === "resumen:ia");
-  after(() => store.incrementViews(a.id));
+  // las visitas de bots y los prefetch del navegador no cuentan como lecturas
+  const h = await headers();
+  const isBot = /bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|preview|curl|wget|python|node-fetch|axios|headless|lighthouse/i.test(h.get("user-agent") ?? "");
+  const isPrefetch = h.get("next-router-prefetch") === "1" || /prefetch/i.test(h.get("purpose") ?? h.get("sec-purpose") ?? "");
+  if (!isBot && !isPrefetch && h.get("user-agent")) after(() => store.incrementViews(a.id));
   const related = (await store.queryArticles({ category: a.category, limit: 6 })).filter((x) => x.id !== a.id).slice(0, 5);
 
   return (

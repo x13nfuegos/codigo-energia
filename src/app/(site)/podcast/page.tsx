@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { after } from "next/server";
 import { SectionTitle } from "@/components/Cards";
 import { PodcastPlayer } from "@/components/PodcastPlayer";
-import { enrichPodcast, sortedEpisodes } from "@/lib/podcast";
+import { sortedEpisodes } from "@/lib/podcast";
+import { enrichPodcast } from "@/lib/podcast-store";
 import { getSettings } from "@/lib/site";
-import { getStore } from "@/lib/store";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSettings();
@@ -15,7 +15,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const settings = await getSettings();
   const podcast = settings.podcast;
   if (podcast?.episodes.length) {
-    after(async () => enrichPodcast(podcast, async (p) => (await getStore()).saveSettings({ podcast: p })));
+    after(async () => enrichPodcast(podcast));
   }
   const episodes = podcast ? sortedEpisodes(podcast) : [];
   return (

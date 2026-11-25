@@ -5,7 +5,8 @@ import { getStore } from "@/lib/store";
 import { categoryFamily, categoryOf, getIndicators } from "@/lib/site";
 import type { Section, Settings } from "@/lib/types";
 import { after } from "next/server";
-import { enrichPodcast, sortedEpisodes } from "@/lib/podcast";
+import { sortedEpisodes } from "@/lib/podcast";
+import { enrichPodcast } from "@/lib/podcast-store";
 import { BriefCard } from "./BriefCard";
 import { PodcastPlayer } from "./PodcastPlayer";
 import { PetroleroRunner } from "./game/PetroleroRunner";
@@ -121,7 +122,7 @@ export async function SectionBlock({ section, settings }: { section: Section; se
     case "podcast": {
       const podcast = settings.podcast;
       if (!podcast?.episodes.length) return null;
-      after(async () => enrichPodcast(podcast, (p) => store.saveSettings({ podcast: p })));
+      after(async () => enrichPodcast(podcast));
       return (
         <section>
           <SectionTitle title={section.title || podcast.title} href="/podcast" />

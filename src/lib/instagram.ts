@@ -130,8 +130,10 @@ export async function publishArticle(a: Article): Promise<InstagramPost> {
   } catch (e) {
     post.error = e instanceof Error ? e.message : String(e);
   }
-  const fresh = { ...DEFAULT_INSTAGRAM, ...(await store.getSettings()).instagram };
-  await store.saveSettings({ instagram: { ...fresh, posts: [post, ...fresh.posts].slice(0, 100) } });
+  await store.updateSettings((s) => {
+    const fresh = { ...DEFAULT_INSTAGRAM, ...s.instagram };
+    return { instagram: { ...fresh, posts: [post, ...fresh.posts].slice(0, 100) } };
+  });
   return post;
 }
 
@@ -158,24 +160,32 @@ let busy = false;
 /**
  * Publicación automática: en cada horario configurado publica la mejor nota disponible,
  * sin pasar el máximo diario. Lo disparan el cron y las visitas (maybeRefresh).
+ * El lock "instagram" (entre instancias) evita publicar dos veces la misma nota: las condiciones
+ * se revisan recién con el lock tomado, así que la segunda instancia ve el posteo de la primera.
  */
 export async function maybePostInstagram(): Promise<InstagramPost | null> {
   if (busy || !igConfigured()) return null;
   busy = true;
   try {
-    const store = await getStore();
-    const ig = { ...DEFAULT_INSTAGRAM, ...(await store.getSettings()).instagram };
-    if (!ig.enabled) return null;
-    const h = hourAR();
-    const slot = [...ig.hours].sort((a, b) => a - b).filter((x) => x <= h).pop();
-    if (slot === undefined) return null;
-    const today = ig.posts.filter((p) => dayAR(new Date(p.at)) === dayAR());
-    if (today.filter((p) => p.ok).length >= ig.per_day) return null;
-    // una vez por horario (los intentos fallidos también cuentan, para no insistir cada visita)
-    if (today.some((p) => Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hourCycle: "h23" }).format(new Date(p.at))) >= slot)) return null;
-    const [next] = await igCandidates(1);
-    return next ? await publishArticle(next) : null;
+    const { withLock } = await import("./lock");
+    const r = await withLock("instagram", 5 * 60000, postIfDue);
+    return r.ran ? r.value : null;
   } finally {
     busy = false;
   }
+}
+
+async function postIfDue(): Promise<InstagramPost | null> {
+  const store = await getStore();
+  const ig = { ...DEFAULT_INSTAGRAM, ...(await store.getSettings()).instagram };
+  if (!ig.enabled) return null;
+  const h = hourAR();
+  const slot = [...ig.hours].sort((a, b) => a - b).filter((x) => x <= h).pop();
+  if (slot === undefined) return null;
+  const today = ig.posts.filter((p) => dayAR(new Date(p.at)) === dayAR());
+  if (today.filter((p) => p.ok).length >= ig.per_day) return null;
+  // una vez por horario (los intentos fallidos también cuentan, para no insistir cada visita)
+  if (today.some((p) => Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hourCycle: "h23" }).format(new Date(p.at))) >= slot)) return null;
+  const [next] = await igCandidates(1);
+  return next ? await publishArticle(next) : null;
 }

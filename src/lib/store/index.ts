@@ -16,7 +16,14 @@ export interface Store {
   incrementViews(id: string): Promise<void>;
   deleteArticlesBefore(iso: string): Promise<number>;
   getSettings(): Promise<Settings>;
+  /** guarda solo los campos del patch, de forma atómica (no pisa cambios de otras tareas) */
   saveSettings(patch: Partial<Settings>): Promise<Settings>;
+  /**
+   * Lee-modifica-escribe atómico: `fn` recibe la configuración actual y devuelve el patch a aplicar,
+   * o null para no escribir nada. Si otra instancia escribió en el medio, se vuelve a llamar con lo nuevo.
+   * Devuelve la configuración resultante, o null si `fn` decidió no escribir.
+   */
+  updateSettings(fn: (current: Settings) => Partial<Settings> | null): Promise<Settings | null>;
 }
 
 const g = globalThis as { __ceStore?: Promise<Store>; __ceStoreAt?: number };

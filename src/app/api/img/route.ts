@@ -1,19 +1,12 @@
 import { lookup } from "dns/promises";
 import { isIP } from "net";
 import type { NextRequest } from "next/server";
+import { isPrivateIp } from "@/lib/safe-image";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 6 * 1024 * 1024;
-
-function isPrivate(ip: string): boolean {
-  if (ip.includes(":")) {
-    const v = ip.toLowerCase();
-    return v === "::1" || v === "::" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80") || v.startsWith("::ffff:127.") || v.startsWith("::ffff:10.") || v.startsWith("::ffff:192.168.");
-  }
-  const [a, b] = ip.split(".").map(Number);
-  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
-}
+const isPrivate = isPrivateIp;
 
 /**
  * Proxy de imágenes de las notas: resuelve bloqueos por hotlinking y contenido http en un sitio https.

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SCHEMAS, parseForm } from "@/lib/admin-schema";
 import { checkPassword, createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE, verifySessionToken } from "@/lib/auth";
@@ -11,7 +11,7 @@ import * as cheerio from "cheerio";
 import { articleId, fetchSource, fetchText, geotagArticles, runScrape, type RawItem } from "@/lib/scraper";
 import { getStore } from "@/lib/store";
 import { isTheme, type ThemeId } from "@/lib/themes";
-import type { Article, Category, MapLayer, PodcastEpisode, Settings, Source, TableName, Tables } from "@/lib/types";
+import type { Article, Category, MapLayer, Podcast, PodcastEpisode, Settings, Source, TableName, Tables } from "@/lib/types";
 
 async function requireAdmin() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -39,7 +39,17 @@ function slugify(s: string): string {
 
 export async function login(_: string | null, fd: FormData): Promise<string | null> {
   if (!process.env.ADMIN_PASSWORD) return "Falta configurar ADMIN_PASSWORD en las variables de entorno.";
-  if (!(await checkPassword(String(fd.get("password") ?? "")))) return "Contraseña incorrecta.";
+  // límite de intentos por IP (Vercel pone la IP real del visitante en x-real-ip / x-forwarded-for)
+  const h = await headers();
+  const ip = h.get("x-real-ip") || h.get("x-forwarded-for")?.split(",")[0].trim() || "desconocida";
+  const { clearLoginFailures, loginBlockedFor, recordLoginFailure } = await import("@/lib/login-limit");
+  const wait = await loginBlockedFor(ip).catch(() => 0);
+  if (wait) return `Demasiados intentos fallidos. Probá de nuevo en ${wait} min.`;
+  if (!(await checkPassword(String(fd.get("password") ?? "")))) {
+    await recordLoginFailure(ip).catch((e) => console.error("login-limit", e));
+    return "Contraseña incorrecta.";
+  }
+  await clearLoginFailures(ip).catch(() => undefined);
   (await cookies()).set(SESSION_COOKIE, await createSessionToken(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -295,7 +305,6 @@ export async function saveMapLayer(fd: FormData) {
   await requireAdmin();
   const str = (k: string) => String(fd.get(k) ?? "").trim();
   const store = await getStore();
-  const layers = [...((await store.getSettings()).map_layers ?? [])];
   const layer: MapLayer = {
     id: str("id") || `capa-${Date.now().toString(36)}`,
     label: str("label") || str("layers"),
@@ -306,17 +315,20 @@ export async function saveMapLayer(fd: FormData) {
     opacity: Math.min(1, Math.max(0.1, Number(str("opacity").replace(",", ".")) || 1)),
   };
   if (!layer.url || !layer.layers) back("/admin/mapa", "La capa necesita URL del servicio WMS y nombre de capa", true);
-  const i = layers.findIndex((l) => l.id === layer.id);
-  if (i >= 0) layers[i] = layer;
-  else layers.push(layer);
-  await store.saveSettings({ map_layers: layers });
+  await store.updateSettings((s) => {
+    const fresh = [...(s.map_layers ?? [])];
+    const i = fresh.findIndex((l) => l.id === layer.id);
+    if (i >= 0) fresh[i] = layer;
+    else fresh.push(layer);
+    return { map_layers: fresh };
+  });
   back("/admin/mapa", "Capa guardada");
 }
 
 export async function deleteMapLayer(id: string) {
   await requireAdmin();
   const store = await getStore();
-  await store.saveSettings({ map_layers: ((await store.getSettings()).map_layers ?? []).filter((l) => l.id !== id) });
+  await store.updateSettings((s) => ({ map_layers: (s.map_layers ?? []).filter((l) => l.id !== id) }));
   back("/admin/mapa", "Capa eliminada");
 }
 
@@ -346,11 +358,11 @@ export async function listWmsLayers(url: string): Promise<{ layers?: WmsLayerInf
 export async function addWmsLayer(url: string, name: string, title: string) {
   await requireAdmin();
   const store = await getStore();
-  const layers = [...((await store.getSettings()).map_layers ?? [])];
-  if (!layers.some((l) => l.url === url && l.layers === name)) {
-    layers.push({ id: `capa-${Date.now().toString(36)}`, label: title, url, layers: name, enabled: true, visible: false, opacity: 0.9 });
-    await store.saveSettings({ map_layers: layers });
-  }
+  await store.updateSettings((s) => {
+    const layers = s.map_layers ?? [];
+    if (layers.some((l) => l.url === url && l.layers === name)) return null;
+    return { map_layers: [...layers, { id: `capa-${Date.now().toString(36)}`, label: title, url, layers: name, enabled: true, visible: false, opacity: 0.9 }] };
+  });
   revalidatePath("/", "layout");
 }
 
@@ -376,22 +388,22 @@ export async function restoreOfficialCounters() {
 async function podcastState() {
   const { DEFAULT_PODCAST } = await import("@/lib/podcast");
   const store = await getStore();
-  return { store, podcast: (await store.getSettings()).podcast ?? DEFAULT_PODCAST };
+  /** escribe sobre el podcast vigente (no sobre el leído al principio), para no pisar cambios hechos en el medio */
+  const update = (fn: (p: Podcast) => Podcast) => store.updateSettings((s) => ({ podcast: fn(s.podcast ?? DEFAULT_PODCAST) }));
+  return { store, podcast: (await store.getSettings()).podcast ?? DEFAULT_PODCAST, update };
 }
 
 export async function savePodcastInfo(fd: FormData) {
   await requireAdmin();
-  const { store, podcast } = await podcastState();
-  await store.saveSettings({
-    podcast: { ...podcast, title: String(fd.get("title") || podcast.title).trim(), description: String(fd.get("description") ?? "").trim() },
-  });
+  const { update } = await podcastState();
+  await update((p) => ({ ...p, title: String(fd.get("title") || p.title).trim(), description: String(fd.get("description") ?? "").trim() }));
   back("/admin/podcast", "Datos del podcast guardados");
 }
 
 export async function saveEpisode(fd: FormData) {
   await requireAdmin();
   const { parseVideo, fetchEpisodeMeta } = await import("@/lib/podcast");
-  const { store, podcast } = await podcastState();
+  const { podcast, update } = await podcastState();
   const str = (k: string) => String(fd.get(k) ?? "").trim();
   const url = str("url");
   if (!parseVideo(url)) back("/admin/podcast", "El link no es de Vimeo, YouTube ni un archivo de video/audio", true);
@@ -428,16 +440,18 @@ export async function saveEpisode(fd: FormData) {
       episode = { ...episode, meta_tried_at: new Date().toISOString() };
     }
   }
-  const episodes = prev ? podcast.episodes.map((e) => (e.id === id ? episode : e)) : [...podcast.episodes, episode];
-  await store.saveSettings({ podcast: { ...podcast, episodes } });
+  await update((p) => ({
+    ...p,
+    episodes: p.episodes.some((e) => e.id === id) ? p.episodes.map((e) => (e.id === id ? episode : e)) : [...p.episodes, episode],
+  }));
   if (metaErr) back("/admin/podcast", `Episodio guardado, pero no se pudieron leer los datos de Vimeo: ${metaErr}`, true);
   back("/admin/podcast", prev ? "Episodio actualizado" : "Episodio publicado: ya aparece en la playlist");
 }
 
 export async function deleteEpisode(id: string) {
   await requireAdmin();
-  const { store, podcast } = await podcastState();
-  await store.saveSettings({ podcast: { ...podcast, episodes: podcast.episodes.filter((e) => e.id !== id) } });
+  const { update } = await podcastState();
+  await update((p) => ({ ...p, episodes: p.episodes.filter((e) => e.id !== id) }));
   back("/admin/podcast", "Episodio eliminado");
 }
 
@@ -484,7 +498,8 @@ export async function makeLatestAudio() {
 export async function refreshEpisodeMeta(id: string | null) {
   await requireAdmin();
   const { fetchEpisodeMeta, applyMeta } = await import("@/lib/podcast");
-  const { store, podcast } = await podcastState();
+  const { mergePodcastEpisodes } = await import("@/lib/podcast-store");
+  const { podcast } = await podcastState();
   const errors: string[] = [];
   let ok = 0;
   const episodes = await Promise.all(
@@ -500,7 +515,7 @@ export async function refreshEpisodeMeta(id: string | null) {
       }
     }),
   );
-  await store.saveSettings({ podcast: { ...podcast, episodes } });
+  await mergePodcastEpisodes(episodes.filter((e, i) => e !== podcast.episodes[i]));
   if (errors.length) back("/admin/podcast", `${ok} actualizados · ${errors.join(" | ")}`, true);
   back("/admin/podcast", ok === 1 ? "Datos leídos desde el video" : `${ok} episodios actualizados desde el video`);
 }
@@ -511,17 +526,20 @@ export async function saveInstagram(fd: FormData) {
   await requireAdmin();
   const { DEFAULT_INSTAGRAM } = await import("@/lib/instagram");
   const store = await getStore();
-  const ig = { ...DEFAULT_INSTAGRAM, ...(await store.getSettings()).instagram };
   const hours = [...new Set(String(fd.get("hours") ?? "").split(/[^\d]+/).filter(Boolean).map(Number).filter((h) => h >= 0 && h <= 23))].sort((a, b) => a - b);
-  await store.saveSettings({
-    instagram: {
-      ...ig,
-      enabled: fd.get("enabled") === "on",
-      ai_caption: fd.get("ai_caption") === "on",
-      per_day: Math.min(25, Math.max(1, Number(fd.get("per_day")) || ig.per_day)),
-      hours: hours.length ? hours : ig.hours,
-      hashtags: String(fd.get("hashtags") ?? "").trim(),
-    },
+  // sobre la configuración vigente: no se pierde un posteo que se haya registrado mientras tanto
+  await store.updateSettings((s) => {
+    const ig = { ...DEFAULT_INSTAGRAM, ...s.instagram };
+    return {
+      instagram: {
+        ...ig,
+        enabled: fd.get("enabled") === "on",
+        ai_caption: fd.get("ai_caption") === "on",
+        per_day: Math.min(25, Math.max(1, Number(fd.get("per_day")) || ig.per_day)),
+        hours: hours.length ? hours : ig.hours,
+        hashtags: String(fd.get("hashtags") ?? "").trim(),
+      },
+    };
   });
   back("/admin/instagram", "Configuración de Instagram guardada");
 }

@@ -258,6 +258,10 @@ export interface Settings {
   instagram?: InstagramSettings;
   last_scrape_at?: string | null;
   last_indicators_at?: string | null;
+  /** locks entre instancias: tarea → vencimiento (ISO). Ver lib/lock.ts */
+  locks?: Record<string, string>;
+  /** intentos fallidos de login por IP (ventana corta). Ver lib/login-limit.ts */
+  login_fails?: Record<string, { count: number; first: string }>;
 }
 
 export interface Tables {

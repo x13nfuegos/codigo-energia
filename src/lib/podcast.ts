@@ -194,24 +194,8 @@ export function applyMeta(e: PodcastEpisode, meta: Partial<PodcastEpisode>, over
   };
 }
 
-/** Completa título, descripción y miniatura de episodios nuevos y lo guarda (si Vimeo falla, reintenta en una hora). */
-export async function enrichPodcast(podcast: Podcast, save: (p: Podcast) => Promise<unknown>): Promise<void> {
-  // episodios nuevos, o con título genérico / sin descripción: se consulta el video (como mucho una vez por hora)
-  const due = (e: PodcastEpisode) =>
-    (!e.meta_ok || isGenericTitle(e.title) || !e.description) && (!e.meta_tried_at || Date.now() - new Date(e.meta_tried_at).getTime() > 3600000);
-  if (!podcast.episodes.some(due)) return;
-  const episodes = await Promise.all(
-    podcast.episodes.map(async (e) => {
-      if (!due(e)) return e;
-      try {
-        return applyMeta(e, await fetchEpisodeMeta(e.url), false);
-      } catch {
-        return { ...e, meta_tried_at: new Date().toISOString() };
-      }
-    }),
-  );
-  await save({ ...podcast, episodes });
-}
+// enrichPodcast y mergePodcastEpisodes están en podcast-store.ts: este archivo también lo usa el reproductor
+// (componente del navegador) y no puede importar el almacenamiento del servidor.
 
 /** Diagnóstico: qué devuelve cada vía de Vimeo para un episodio (para saber por qué no llegan los datos). */
 export async function debugVimeo(url: string): Promise<string> {

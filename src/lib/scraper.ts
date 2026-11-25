@@ -138,6 +138,18 @@ function firstImgInHtml(html?: string): string | null {
   return $("img").first().attr("src") ?? null;
 }
 
+/** Saca el nombre del medio del final del titular ("… - Medio" o "… | Medio"), si está. */
+export function stripSourceSuffix(title: string, source: string): string {
+  const s = source.trim();
+  if (!s) return title;
+  for (const sep of [" - ", " | ", " – ", " — "]) {
+    if (title.length > s.length + sep.length + 10 && title.toLowerCase().endsWith(`${sep}${s}`.toLowerCase())) {
+      return title.slice(0, title.length - s.length - sep.length).trim();
+    }
+  }
+  return title;
+}
+
 export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawItem[]> {
   const feed = await parser.parseString(xml);
   return (feed.items ?? [])
@@ -147,6 +159,8 @@ export async function parseFeed(xml: string, isGoogleNews = false): Promise<RawI
       let source_name: string | null = null;
       if (it.source) source_name = typeof it.source === "string" ? it.source : it.source._ ?? null;
       if (it.newsSource) source_name = it.newsSource;
+      // si el feed dice cuál es el medio, se saca del final del titular ("Titular - La Vanguardia Noticias - Caleta")
+      if (source_name) title = stripSourceSuffix(title, source_name);
       if (isGoogleNews) {
         // "Titular - Medio" → separar el medio
         const m = title.match(/^(.*) - ([^-]{2,60})$/);
@@ -386,7 +400,20 @@ export async function scrapeSource(source: Source, knownTitles: KnownTitles, geo
   }
 }
 
-export async function runScrape(onlySourceId?: string): Promise<{ reports: SourceReport[]; inserted: number; removed: number }> {
+type ScrapeResult = { reports: SourceReport[]; inserted: number; removed: number; skipped?: boolean };
+
+/**
+ * Scrapea las fuentes. El scrapeo completo toma el lock "scrape" entre instancias: si otra instancia ya
+ * está scrapeando, no se hace nada (skipped). Probar una sola fuente desde el back office no usa lock.
+ */
+export async function runScrape(onlySourceId?: string): Promise<ScrapeResult> {
+  if (onlySourceId) return doScrape(onlySourceId);
+  const { withLock } = await import("./lock");
+  const r = await withLock("scrape", 6 * 60000, () => doScrape());
+  return r.ran ? r.value : { reports: [], inserted: 0, removed: 0, skipped: true };
+}
+
+async function doScrape(onlySourceId?: string): Promise<ScrapeResult> {
   const store = await getStore();
   const settings = await store.getSettings();
   await store.saveSettings({ last_scrape_at: new Date().toISOString() });
@@ -402,6 +429,14 @@ export async function runScrape(onlySourceId?: string): Promise<{ reports: Sourc
   if (SOURCE_FIXES.some((f) => all.some((x) => x.id === f.id && x.url === f.oldUrl))) all = await store.list("sources");
   const sources = all.filter((s) => (onlySourceId ? s.id === onlySourceId : s.enabled));
   const recent = await store.queryArticles({ status: "all", limit: 400 });
+  // notas ya guardadas con el medio pegado al titular: se limpian (una vez; después ya no coinciden)
+  for (const a of recent) {
+    const clean = a.source_name ? stripSourceSuffix(a.title, a.source_name) : a.title;
+    if (clean !== a.title) {
+      await store.patch("articles", a.id, { title: clean }).catch(() => undefined);
+      a.title = clean;
+    }
+  }
   const knownTitles: KnownTitles = new Map(recent.map((a) => [titleKey(a.title), { id: a.id, image: !!a.image, url: a.url }]));
   const geo = makeGeolocator(await store.list("map_points"));
 

@@ -143,15 +143,54 @@ export class SupabaseStore implements Store {
     return res.count ?? 0;
   }
 
-  async getSettings(): Promise<Settings> {
+  /** fila cruda de la configuración, con su número de revisión (_rev) para escribir sin pisar a otros */
+  private async readSettings(): Promise<{ value: Settings & { _rev?: number }; exists: boolean }> {
     await this.ensureSeed();
-    const row = this.check(await this.sb.from("settings").select("value").eq("id", "site").maybeSingle()) as { value: Settings } | null;
-    return { ...DEFAULT_SETTINGS, ...(row?.value ?? {}) };
+    const row = this.check(await this.sb.from("settings").select("value").eq("id", "site").maybeSingle()) as { value: Settings & { _rev?: number } } | null;
+    return { value: { ...DEFAULT_SETTINGS, ...(row?.value ?? {}) }, exists: !!row };
+  }
+
+  async getSettings(): Promise<Settings> {
+    const { _rev, ...settings } = (await this.readSettings()).value;
+    void _rev;
+    return settings;
   }
 
   async saveSettings(patch: Partial<Settings>): Promise<Settings> {
-    const next = { ...(await this.getSettings()), ...patch };
-    this.check(await this.sb.from("settings").upsert({ id: "site", value: next }));
-    return next;
+    return (await this.updateSettings(() => patch)) as Settings;
+  }
+
+  /**
+   * Compare-and-swap sobre la fila de configuración: solo escribe si nadie la cambió desde que se leyó
+   * (filtro por value->>_rev). Si otra tarea escribió en el medio, se relee y se reintenta.
+   * Así dos tareas en paralelo (scrapeo, audio, Instagram, admin) no se pisan los cambios.
+   */
+  async updateSettings(fn: (current: Settings) => Partial<Settings> | null): Promise<Settings | null> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { value, exists } = await this.readSettings();
+      const { _rev, ...current } = value;
+      const patch = fn(current);
+      if (!patch) return null;
+      const next = { ...current, ...patch };
+      const stored = { ...next, _rev: (_rev ?? 0) + 1 };
+      if (!exists) {
+        const ins = await this.sb.from("settings").insert({ id: "site", value: stored });
+        if (!ins.error) return next;
+      } else {
+        let q = this.sb.from("settings").update({ value: stored }).eq("id", "site");
+        q = _rev === undefined ? q.is("value->>_rev", null) : q.eq("value->>_rev", String(_rev));
+        const res = await q.select("id");
+        if (res.error) {
+          // si el filtro por revisión no anduviera, se guarda como antes (sin protección) en lugar de romper el sitio
+          console.error("settings: compare-and-swap falló, se guarda sin control de revisión", res.error.message);
+          this.check(await this.sb.from("settings").upsert({ id: "site", value: stored }));
+          return next;
+        }
+        if (res.data?.length) return next;
+      }
+      // otra instancia escribió primero: esperar un poco (con azar) y volver a intentar con lo nuevo
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 150 * (attempt + 1)));
+    }
+    throw new Error("Supabase: no se pudo guardar la configuración (demasiadas escrituras simultáneas)");
   }
 }

@@ -1,12 +1,21 @@
 import { arDate, generateBrief, yesterdayAR } from "./ai";
 import { refreshIndicators } from "./indicators";
 import { checkBriefVideo, generateBriefAudio, requestBriefVideo } from "./media";
+import { tryLock, withLock } from "./lock";
 import { runScrape } from "./scraper";
 import { getStore } from "./store";
 import type { DailyBrief } from "./types";
 
-/** Genera el resumen de ayer (texto + audio + video) si todavía no existe. */
-export async function runDailyBrief(force = false) {
+/**
+ * Genera el resumen de ayer (texto + audio + video) si todavía no existe.
+ * Con el lock "daily" entre instancias: si otra ya lo está generando, no se duplica el gasto de IA.
+ */
+export async function runDailyBrief(force = false): Promise<{ date: string; log: string[] }> {
+  const r = await withLock("daily", 6 * 60000, () => doDailyBrief(force));
+  return r.ran ? r.value : { date: yesterdayAR(), log: ["otra instancia ya está generando el resumen"] };
+}
+
+async function doDailyBrief(force: boolean) {
   const store = await getStore();
   const settings = await store.getSettings();
   const date = yesterdayAR();
@@ -53,7 +62,6 @@ export async function checkPendingVideos() {
 }
 
 let running = false;
-let lastPhotoCheck = 0;
 
 /**
  * Actualización "perezosa": cada visita revisa si pasó el intervalo configurado
@@ -68,11 +76,12 @@ export async function maybeRefresh() {
     const s = await store.getSettings();
     const ago = (iso?: string | null) => (iso ? (Date.now() - new Date(iso).getTime()) / 60000 : Infinity);
     const tasks: Promise<unknown>[] = [];
-    if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(refreshIndicators({ fast: true }));
+    // cada tarea toma su lock entre instancias: con varias instancias activas, la hace una sola
+    if (ago(s.last_indicators_at) >= s.indicators_every_min) tasks.push(withLock("indicators", 3 * 60000, () => refreshIndicators({ fast: true })));
     if (ago(s.last_scrape_at) >= s.scrape_every_min) tasks.push(runScrape());
     await Promise.allSettled(tasks);
-    if (Date.now() - lastPhotoCheck > 10 * 60000) {
-      lastPhotoCheck = Date.now();
+    // verificación de fotos: como mucho cada 10 minutos en todo el sitio (el lock no se libera, vence solo)
+    if (await tryLock("photos", 10 * 60000).catch(() => false)) {
       const { verifyPhotos } = await import("./scraper");
       await verifyPhotos(60, 30000).catch(() => undefined);
     }
@@ -83,7 +92,7 @@ export async function maybeRefresh() {
     } else if (s.brief_audio && process.env.ELEVENLABS_API_KEY && ago(s.audio_status?.at) >= 60) {
       // el resumen ya existe pero el audio falló o nunca se hizo: se reintenta cada hora
       const [last] = (await store.list("briefs")).sort((a, b) => b.date.localeCompare(a.date));
-      if (last && !last.audio_url) await makeAudio(last);
+      if (last && !last.audio_url) await withLock("audio", 5 * 60000, () => makeAudio(last));
     }
     await checkPendingVideos().catch(() => undefined);
     const { maybePostInstagram } = await import("./instagram");

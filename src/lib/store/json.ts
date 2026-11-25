@@ -150,7 +150,14 @@ export class JsonStore implements Store {
   }
 
   async saveSettings(patch: Partial<Settings>): Promise<Settings> {
+    return (await this.updateSettings(() => patch)) as Settings;
+  }
+
+  /** un solo proceso: alcanza con leer y escribir sin esperas en el medio */
+  async updateSettings(fn: (current: Settings) => Partial<Settings> | null): Promise<Settings | null> {
     const db = await this.load();
+    const patch = fn(db.settings);
+    if (!patch) return null;
     db.settings = { ...db.settings, ...patch };
     await this.save();
     return db.settings;
